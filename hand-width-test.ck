@@ -57,9 +57,9 @@ Fs3 * 4.0 => float Fs5;
   E3,
   B2,  // B2 or A2, both sound great
   Fs2,
-  D2,
+  //D2,
   G1,
-  // D1,
+  D1,
   D0
 ] @=> float targetFreqs2[];
 
