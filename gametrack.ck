@@ -60,8 +60,16 @@ public class GameTrack {
     return Math.sqrt(pos[0]*pos[0] + pos[1]*pos[1]);
   }
 
+  fun float squared_mag2(float pos[]) {  // fast than sqrt
+    return (pos[0]*pos[0] + pos[1]*pos[1]);
+  }
+
   fun float dist(float a[], float b[]) {
     return mag([a[0] - b[0], a[1] - b[1]]);
+  }
+
+  fun float squared_dist2(float a[], float b[]) {
+    return this.squared_mag2([a[0] - b[0], a[1] - b[1]]);
   }
 
   // remaps c from range [a,b] to range [x, y]
@@ -197,7 +205,6 @@ public class GameTrack {
     }
 
     // scale z axis to real units, in cm
-    1 => int sign;
     remap(0, 1, 0, CABLE_LENGTH, zAxis) => zAxis;
     remap(-1, 1, -35, 35, xAxis) => float theta;
 
@@ -207,7 +214,6 @@ public class GameTrack {
     // convert theta to rad
     0.0174533 *=> theta;
 
-    if (xAxis < 0) { -1 => sign; }
     return [zAxis * Math.sin(theta), zAxis * Math.cos(theta)];
   }
 
@@ -216,6 +222,13 @@ public class GameTrack {
     this.getXPos(this.RIGHT) @=> float RHPos[];
 
     return this.dist(LHPos, RHPos);
+  }
+
+  fun float GetXZPlaneHandDistSquared() {
+    this.getXPos(this.LEFT) @=> float LHPos[];
+    this.getXPos(this.RIGHT) @=> float RHPos[];
+
+    return this.squared_dist2(LHPos, RHPos);
   }
 
 }
