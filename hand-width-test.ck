@@ -166,7 +166,7 @@ for (0 => int i; i < numVoices; i++) {
   tonic => voices[i].freq;
 
   // set voice gain
-  .45 / numVoices => voices[i].gain;
+  .5 / numVoices => voices[i].gain;
   0.0 => gains[i].gain;
 
   // TODO: add spatialization here?
@@ -241,13 +241,13 @@ while (true) {
   // scale params for all voices
   for (0 => int i; i < numVoices; i++) {
     // voice gain
-    percentage * .7 => gains[i].gain;
+    percentage * .85 => gains[i].gain;
 
     // pwm
     percentage * .40 => pwmDepth;
 
     // drum gain mod
-    percentage * 0.45 => drumGain.gain;
+    percentage * 0.65 => drumGain.gain;
 
     // lp freq mod
     percentage * (5400) + 400 => fcBase;
