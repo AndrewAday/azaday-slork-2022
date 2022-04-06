@@ -4,9 +4,9 @@
 .68 => float stage2start;
 .93 => float stage2end;
 
-2 => int NUM_CHANNELS;
+6 => int NUM_CHANNELS;
 
-120.0 => float maxDist; // max hand distance = 100%
+150.0 => float maxDist; // max hand distance = 100%
 
 293.0 => float tonic;  // middle D
 
@@ -83,12 +83,16 @@ fun float lfo(float freq) {
 0. => float pwmDepth;
 400 => float fcBase;
 .85 => float fcDepth; // wider apart, the less we modulate for fuller sound
-fun void pwm(PulseOsc @ p, LPF @ l, Gain @ g, float wf, float lf, float gf) {
+fun void pwm(int idx, PulseOsc @ p, LPF @ l, Gain @ g, float wf, float lf, float gf) {
     /* now + fadein => time later; */
   while (true) {
 
     // mod pulse width
-    .5 + pwmDepth * lfo(wf) => p.width;
+    if (idx % 3 == 0) {  // only do every other, too expensive
+       //  .5 + pwmDepth * lfo(wf) => p.width;
+   	.5 + .4 * lfo(wf) => p.width;
+    }
+    // .5 + .3 * lfo(wf) => p.width;
 
     // mod filter cutoff
     fcBase + (fcDepth * fcBase) * lfo(lf) =>l.freq;
@@ -97,7 +101,7 @@ fun void pwm(PulseOsc @ p, LPF @ l, Gain @ g, float wf, float lf, float gf) {
     // TODO: mod pan?
     /* Math.sin(2*pi*pf*(now/second))=>pan.pan; */
 
-    10::ms => now;
+    20::ms => now;
   }
 }
 
@@ -155,7 +159,7 @@ for (0 => int i; i < numVoices; i++) {
   Math.random2f(1.0/7, 1.0/5) => float lf;  // low pass cutoff mod rate
   Math.random2f(1.0/7, 1.0/5) => float gf;  // gain mod rate
 
-  spork ~ pwm(voices[i], lpfs[i], gains[i], wf, lf, gf);
+  spork ~ pwm(i, voices[i], lpfs[i], gains[i], wf, lf, gf);
   /* spork ~ this.pwm(p2, l2, g2, pan2, 1./12, 1./16, 1./14, -1./18); // pan in opposite direction! */
 
   // set freq
@@ -184,14 +188,13 @@ false => int aboveStage1;  // true when position > stage1 end
 fun void heartbeat_pattern() {
   while (true) {
     if (!inStage2) {
-      10::ms => now;
+      15::ms => now;
       continue;
     }
-    Math.random2(0, E.cap()-1) => int idx1;
-    Math.random2(0, E.cap()-1) => int idx2;
+    // Math.random2(0, E.cap()-1) => int idx1;
+    // Math.random2(0, E.cap()-1) => int idx2;
     td.play_heartbeat_pattern(td.bpm_to_qt_note(92), E[3], E[3], 1);
     /* <<< "idx1: ", idx1, " idx2: ", idx2 >>>; */
-    1::ms => now;
   }
 } spork ~ heartbeat_pattern();
 
@@ -206,7 +209,7 @@ fun void stage1_drum_pattern() {
       td.bpm_to_qt_note(beat_bpm) => now;  // accelerate to 92bpm
       <<< "bump" >>>;
     } else {
-      5::ms => now;
+      15::ms => now;
     }
   }
 
@@ -214,7 +217,7 @@ fun void stage1_drum_pattern() {
 
 while (true) {
   gt.GetXZPlaneHandDist() => float handDist;
-  /* <<< "handDist: ", handDist >>>; */
+  // <<< "handDist: ", handDist >>>;
   clamp01(gt.invLerp(0, maxDist, handDist)) => float percentage;
 
   // stage enter/exit events
@@ -241,7 +244,7 @@ while (true) {
     percentage * .7 => gains[i].gain;
 
     // pwm
-    percentage * .45 => pwmDepth;
+    percentage * .40 => pwmDepth;
 
     // drum gain mod
     percentage * 0.45 => drumGain.gain;
@@ -284,7 +287,7 @@ while (true) {
     }
   }
 
-  5::ms => now;
+  20::ms => now;
 }
 
 int lastT;
