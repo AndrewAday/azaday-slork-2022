@@ -44,7 +44,8 @@ Fs3 * 4.0 => float Fs5;
   Fs3,
   B2, B2,
   D2,
-  G1, G1, G1
+  G1, G1
+  // , G1
 ] @=> float targetFreqs1[];
 
 [
@@ -58,7 +59,7 @@ Fs3 * 4.0 => float Fs5;
   Fs2,
   D2,
   G1,
-  D1,
+  // D1,
   D0
 ] @=> float targetFreqs2[];
 
