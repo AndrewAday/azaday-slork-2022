@@ -241,13 +241,13 @@ while (true) {
   // scale params for all voices
   for (0 => int i; i < numVoices; i++) {
     // voice gain
-    percentage * .85 => gains[i].gain;
+    percentage * .7 => gains[i].gain;
 
     // pwm
     percentage * .40 => pwmDepth;
 
     // drum gain mod
-    percentage * 0.65 => drumGain.gain;
+    percentage * 0.6 => drumGain.gain;
 
     // lp freq mod
     percentage * (5400) + 400 => fcBase;
