@@ -4,6 +4,10 @@
 .68 => float stage2start;
 .93 => float stage2end;
 
+2 => int NUM_CHANNELS;
+
+120.0 => float maxDist; // max hand distance = 100%
+
 293.0 => float tonic;  // middle D
 
 // intervals
@@ -78,7 +82,7 @@ fun float lfo(float freq) {
 
 0. => float pwmDepth;
 400 => float fcBase;
-0.0 => float fcDepth;
+.85 => float fcDepth; // wider apart, the less we modulate for fuller sound
 fun void pwm(PulseOsc @ p, LPF @ l, Gain @ g, float wf, float lf, float gf) {
     /* now + fadein => time later; */
   while (true) {
@@ -88,6 +92,7 @@ fun void pwm(PulseOsc @ p, LPF @ l, Gain @ g, float wf, float lf, float gf) {
 
     // mod filter cutoff
     fcBase + (fcDepth * fcBase) * lfo(lf) =>l.freq;
+    /* 4000 => l.freq; */
 
     // TODO: mod pan?
     /* Math.sin(2*pi*pf*(now/second))=>pan.pan; */
@@ -105,14 +110,20 @@ gt.init(0);  // also sporks tracker
 
 // Drummer setup
 TaikoDrummer td;
-Gain drumGain => dac;
-.7 => drumGain.gain;
+Gain drumGain;
+for (int i; i < NUM_CHANNELS; i++) {
+   drumGain => dac.chan(i);
+}
+0.0 => drumGain.gain;
 
-SndBuf heartbeat[1];
-SndBuf E[4];
+LiSa heartbeat[1];
+LiSa E[4];
 td.load_and_patch_taiko_samps(heartbeat, "heartbeat", drumGain);
 td.load_and_patch_taiko_samps(E, "E", drumGain);
 .7 => heartbeat[0].gain;
+for (int i; i < 4; i++) {
+  .5 => E[i].gain;
+}
 
 
 // connect UGens
@@ -121,7 +132,10 @@ PulseOsc voices[numVoices];
 LPF lpfs[numVoices];
 Gain gains[numVoices];
 /* Chorus chorus => NRev rev => OverDrive drive => dac; */
-Chorus chorus => NRev rev => dac;
+Chorus chorus => NRev rev;
+for (int i; i < NUM_CHANNELS; i++) {
+   rev => dac.chan(i);
+}
 /* Chorus chorus => NRev rev => Fuzz fuzz => dac;  */
 
 /* .0 => fuzz.mix; */  // distortion clips :(
@@ -137,7 +151,7 @@ Chorus chorus => NRev rev => dac;
 for (0 => int i; i < numVoices; i++) {
   voices[i] => lpfs[i] => gains[i] => chorus;
 
-  Math.random2f(1.0/7, 1.0/5) => float wf;  // pulse width mod rate
+  Math.random2f(1.0/8, 1.0/11) => float wf;  // pulse width mod rate
   Math.random2f(1.0/7, 1.0/5) => float lf;  // low pass cutoff mod rate
   Math.random2f(1.0/7, 1.0/5) => float gf;  // gain mod rate
 
@@ -148,7 +162,7 @@ for (0 => int i; i < numVoices; i++) {
   tonic => voices[i].freq;
 
   // set voice gain
-  .5 / numVoices => voices[i].gain;
+  .45 / numVoices => voices[i].gain;
   0.0 => gains[i].gain;
 
   // TODO: add spatialization here?
@@ -170,11 +184,14 @@ false => int aboveStage1;  // true when position > stage1 end
 fun void heartbeat_pattern() {
   while (true) {
     if (!inStage2) {
-      5::ms => now;
+      10::ms => now;
       continue;
     }
-    Math.random2(0, E.cap()-1) => int idx;
-    td.play_heartbeat_pattern(td.bpm_to_qt_note(92), E[idx], 1);
+    Math.random2(0, E.cap()-1) => int idx1;
+    Math.random2(0, E.cap()-1) => int idx2;
+    td.play_heartbeat_pattern(td.bpm_to_qt_note(92), E[3], E[3], 1);
+    /* <<< "idx1: ", idx1, " idx2: ", idx2 >>>; */
+    1::ms => now;
   }
 } spork ~ heartbeat_pattern();
 
@@ -198,7 +215,7 @@ fun void stage1_drum_pattern() {
 while (true) {
   gt.GetXZPlaneHandDist() => float handDist;
   /* <<< "handDist: ", handDist >>>; */
-  clamp01(gt.invLerp(0, 100, handDist)) => float percentage;
+  clamp01(gt.invLerp(0, maxDist, handDist)) => float percentage;
 
   // stage enter/exit events
   if (!(percentage >= stage1end && percentage <= stage2start)) {
@@ -213,25 +230,29 @@ while (true) {
   }
   if (percentage >= stage2start && percentage <= stage2end) {
     true => aboveStage1;
-    gt.remap(stage2start, stage2end, 60.0, 160.0, percentage) => beat_bpm;
+    gt.remap(stage2start, stage2end, 60.0, 166.0, percentage) => beat_bpm;
   } else {
     false => aboveStage1;
   }
 
   // scale params for all voices
   for (0 => int i; i < numVoices; i++) {
-    percentage => gains[i].gain;
+    // voice gain
+    percentage * .7 => gains[i].gain;
 
     // pwm
     percentage * .45 => pwmDepth;
 
+    // drum gain mod
+    percentage * 0.45 => drumGain.gain;
+
     // lp freq mod
-    percentage * (1400) + 400 => fcBase;
-    percentage * .85 => fcDepth;
+    percentage * (5400) + 400 => fcBase;
+    ((1.0 - percentage) * .75) + .10 => fcDepth;  // inverse scale fc mod depth
 
     // effects mod
-    percentage * .35 => rev.mix;
-    percentage => chorus.mix;
+    percentage * .30 => rev.mix;
+    percentage * .75 => chorus.mix;
   }
 
   // chord stage scaling

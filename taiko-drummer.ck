@@ -10,13 +10,29 @@ public class TaikoDrummer {
     return (60. / (bpm))::second;
   }
 
-  fun void load_and_patch_taiko_samps(SndBuf samples[], string prefix, UGen @ out) {
-    for (int i; i < samples.cap(); i++) {
-        samples[i] => out; // TODO: add reverb?
-        me.dir() + "Samples/Taiko/" + prefix + i + ".wav" => samples[i].read;
-        0 => samples[i].loop;  // don't loop
-        0 => samples[i].rate; // don't play
+  fun void load_and_patch_taiko_samps(LiSa lisas[], string prefix, UGen @ out) {
+    for (int i; i < lisas.cap(); i++) {
+        SndBuf buffy;
+        me.dir() + "Samples/Taiko/" + prefix + i + ".wav" => buffy.read;
+
+        this.load_lisa(buffy) @=> lisas[i];
+        lisas[i].chan(0) => PoleZero p => out;
+        .99 => p.blockZero;
+
     }
+  }
+
+  fun LiSa load_lisa(SndBuf @ sndbuf) {
+    LiSa lisa;
+    sndbuf.samples()::samp => lisa.duration;
+    for (0 => int i; i < sndbuf.samples(); i++) {
+      lisa.valueAt(sndbuf.valueAt(i  * sndbuf.channels()), i::samp );
+    }
+    lisa.play(false);
+    lisa.loop(false);
+    lisa.maxVoices(25);
+
+    return lisa;
   }
 
   /*
@@ -76,15 +92,37 @@ public class TaikoDrummer {
   }
 
   // plays heart beat pattern .25d -> .75d a total of {n} times
-  fun void play_heartbeat_pattern(dur d, SndBuf @ heart, int n) {
+  fun void play_heartbeat_pattern(dur d, SndBuf @ heart0, SndBuf @ heart1, int n) {
     repeat (n) {
-      0 => heart.pos;
-      1 => heart.rate;
+      0 => heart0.pos;
+      1 => heart0.rate;
       .25 * d => now;
-      0 => heart.pos;
-      1 => heart.rate;
+      0 => heart1.pos;
+      1 => heart1.rate;
       .75 * d => now;
     }
+  }
+
+  fun void play_heartbeat_pattern(dur d, LiSa @ heart0, LiSa @ heart1, int n) {
+    repeat (n) {
+      this.play_oneshot(heart0);
+      .25*d => now;
+      this.play_oneshot(heart1);
+      .75*d => now;
+
+    }
+  }
+
+  fun void play_oneshot(LiSa @ lisa) {
+    lisa.getVoice() => int voice;
+    if (voice < 0)
+      return;
+
+    lisa.loop(voice, false);
+    lisa.playPos(voice, 0::ms);
+    lisa.play(voice, true);
+    <<< voice >>>;
+    /* lisa.rampUp(voice, 1::ms); */
   }
 
   fun void restart_sndbuf(SndBuf @ s) {
