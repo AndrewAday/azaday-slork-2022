@@ -29,6 +29,13 @@ public class GameTrack {
   // button
   false => int buttonDown;
 
+  /* ======== Events ======== */
+  /*
+   TODO: add events that fire on 
+   - z hits 0
+  */
+    
+
   /* ======== calibration ======== */
   // axis offsets
   0.0 => float LZOff;
@@ -229,6 +236,10 @@ public class GameTrack {
     this.getXPos(this.RIGHT) @=> float RHPos[];
 
     return this.squared_dist2(LHPos, RHPos);
+  }
+
+  fun float GetCombinedZ() {
+    return this.curAxis[LZ] + this.curAxis[RZ];
   }
 
 }

@@ -4,83 +4,67 @@
 .68 => float stage2start;
 .93 => float stage2end;
 
-6 => int NUM_CHANNELS;
-// 2 => int NUM_CHANNELS;
+// how long stage 2 needs to be held before forcing stage3
+3::second => dur stage2holdThreshold;
+0::second => dur stage2consecutiveHold; 
+2::second => dur stage3lerpTime;  // how long to resolve from stage2 --> stage3
+
+// 6 => int NUM_CHANNELS;
+2 => int NUM_CHANNELS;
 
 150.0 => float maxDist; // max hand distance = 100%
+.7 => float maxGain;
 
 293.0 => float tonic;  // middle D
 
-// intervals
-9./8. => float M2;
-5.0/4 => float M3;
-4.0/3 => float P4;
-45.0/32 => float Aug4;
-3.0/2 => float P5;
-5.0/3 => float M6;
-15.0/8 => float M7;
+// note bank
+Util.toChromaticScale(tonic) @=> float scale[];
+scale[0] => float D3;
+scale[1] => float Eb3;
+scale[2] => float E3;
+scale[3] => float F3;
+scale[4] => float Fs3;
+scale[5] => float G3;
+scale[6] => float Gs3;
+scale[7] => float A3;
+scale[8] => float Bb3;
+scale[9] => float B3;
+scale[10] => float C4;
+scale[11] => float Cs4;
 
-// note freqs
-  // stage 1
-tonic*P4*.25 => float G1;
-tonic*.5 => float D2;
-tonic*M6*.5 => float B2;
-tonic*M3 => float Fs3;
-tonic*P5 => float A3;
-tonic*M7 => float Cs4;
-  // stage 2
-D2 * .5 => float D1;
-D1 * .5 => float D0;
-Fs3 * .5 => float Fs2;
-tonic*M2 => float E3;
-tonic*Aug4*2 => float Gs4;
-B2 * 4.0 => float B4;
-A3 * .5 => float A2;
-Fs3 * 4.0 => float Fs5;
-
-// G1, D2, B2,  F#3,  A3,  C#4
+// Stage 1 chord
+G3 * .5 => float G2;
 [
   Cs4, Cs4, Cs4,
-  A3, A3,
-  Fs3,
-  B2, B2,
-  D2,
-  G1, G1
-  // , G1
-] @=> float targetFreqs1[];
-
-[
-  Fs5,
-  B4,
-  Gs4,
-  Cs4,
   A3,
+  Fs3,
+  D3,
+  B3 * .5,
+  G2, G2
+] @=> float stage1chord[];
+
+// stage 2 chord
+Fs3 * 2 => float Fs4;
+D3 * .5 => float D2;
+[
+  Fs4, Fs4,
+  Cs4,
+  B3,
+  G3,
   E3,
-  B2,  // B2 or A2, both sound great
-  Fs2,
-  //D2,
-  G1,
-  D1,
-  D0
-] @=> float targetFreqs2[];
+  A3 * .5,
+  D2, D2
+] @=> float stage2chord[];
+
+// stage 3 chord
+[
+  F3 * 2, A3 * 2, Cs4 * 2,  // aug on A 
+  Bb3 * .5, D3, Fs3,  // aug on D
+  Eb3 * .25, G3 * .25, B3 * .25 // aug on G
+] @=> float stage3chord[];
 
 
 /* =============== UTIL =============== */
-fun float lerp(float a, float b, float t) {
-  return a + t * (b - a);
-}
-
-fun float invLerp(time a, time b, time c) {
-  return (c-a) / (b-a);
-}
-
-fun float clamp01(float f) {
-  return Math.max(.0, Math.min(f, .99999));
-}
-
-fun float lfo(float freq) {
-  return Math.sin(2*pi*freq*(now/second));
-}
 
 0. => float pwmDepth;
 400 => float fcBase;
@@ -91,13 +75,12 @@ fun void pwm(int idx, PulseOsc @ p, LPF @ l, Gain @ g, float wf, float lf, float
 
     // mod pulse width
     if (idx % 3 == 0) {  // only do every other, too expensive
-       //  .5 + pwmDepth * lfo(wf) => p.width;
-   	.5 + .4 * lfo(wf) => p.width;
+      .5 + pwmDepth * Util.lfo(wf) => p.width;
     }
-    // .5 + .3 * lfo(wf) => p.width;
+    // .5 + .4 * Util.lfo(wf) => p.width;
 
     // mod filter cutoff
-    fcBase + (fcDepth * fcBase) * lfo(lf) =>l.freq;
+    fcBase + (fcDepth * fcBase) * Util.lfo(lf) => l.freq;
     /* 4000 => l.freq; */
 
     // TODO: mod pan?
@@ -117,6 +100,8 @@ gt.init(0);  // also sporks tracker
 // Drummer setup
 TaikoDrummer td;
 Gain drumGain;
+
+  // TODO: fix signal flow, route drums and voices through single main gain, which branches to dac
 for (int i; i < NUM_CHANNELS; i++) {
    drumGain => dac.chan(i);
 }
@@ -131,9 +116,8 @@ for (int i; i < 4; i++) {
   .5 => E[i].gain;
 }
 
-
 // connect UGens
-targetFreqs1.size() => int numVoices;
+stage3chord.size() => int numVoices;
 PulseOsc voices[numVoices];
 LPF lpfs[numVoices];
 Gain gains[numVoices];
@@ -183,13 +167,14 @@ for (0 => int i; i < numVoices; i++) {
 false => int inStage1;  // true when inside stage1 chord
 false => int inStage2; // true when inside stage2 chord zone
 false => int aboveStage1;  // true when position > stage1 end
+false => int inStage3;
 60.0 => float beat_bpm;
 
 
 // heartbeat pattern
 fun void heartbeat_pattern() {
   while (true) {
-    if (!inStage2) {
+    if (!inStage2 || inStage3) {
       15::ms => now;
       continue;
     }
@@ -205,11 +190,9 @@ fun void stage1_drum_pattern() {
     if (inStage1) {
       td.play_oneshot(heartbeat[0]);
       td.bpm_to_qt_note(60) => now;
-      <<< "bump" >>>;
     } else if (aboveStage1 && !inStage2) {
       td.play_oneshot(heartbeat[0]);
       td.bpm_to_qt_note(beat_bpm) => now;  // accelerate to 92bpm
-      <<< "bump" >>>;
     } else {
       15::ms => now;
     }
@@ -220,9 +203,9 @@ fun void stage1_drum_pattern() {
 while (true) {
   gt.GetXZPlaneHandDist() => float handDist;
   // <<< "handDist: ", handDist >>>;
-  clamp01(gt.invLerp(0, maxDist, handDist)) => float percentage;
+  Util.clamp01(gt.invLerp(0, maxDist, handDist)) => float percentage;
 
-  // stage enter/exit events
+  // stage enter/exit events booleans
   if (!(percentage >= stage1end && percentage <= stage2start)) {
     if (inStage1) {
       <<< "exiting stage1 resolution" >>>;
@@ -232,18 +215,21 @@ while (true) {
   if (!(percentage >= stage2end)) {
     if (inStage2) <<< "existing stage2 resoltion" >>>;
     false => inStage2;
+    // reset stage2 timer
+    0::ms => stage2consecutiveHold;
+    // <<< "stage2 hold: ", stage2consecutiveHold >>>; 
   }
   if (percentage >= stage2start && percentage <= stage2end) {
     true => aboveStage1;
-    gt.remap(stage2start, stage2end, 60.0, 166.0, percentage) => beat_bpm;
   } else {
     false => aboveStage1;
+    
   }
 
   // scale params for all voices
   for (0 => int i; i < numVoices; i++) {
     // voice gain
-    percentage * .7 => gains[i].gain;
+    percentage * maxGain => gains[i].gain;
 
     // pwm
     percentage * .40 => pwmDepth;
@@ -264,48 +250,72 @@ while (true) {
   if (percentage < stage1start) { // hold tonic
 
   } else if (percentage >= stage1start && percentage < stage1end) {
-    gt.invLerp(stage1start, stage1end, percentage) => float t;
-    /* printProgress(t); */
     for (0 => int i; i < numVoices; i++) {
-      gt.remap(stage1start, stage1end, tonic, targetFreqs1[i], percentage) => voices[i].freq;
+      Util.remap(stage1start, stage1end, tonic, stage1chord[i], percentage) => voices[i].freq;
     }
   } else if (percentage >= stage1end && percentage < stage2start) {  // between stages
     if (!inStage1) {
       <<< "entered stage1 resolution!" >>>;
       true => inStage1;
     }
-  } else if (percentage >= stage2start && percentage < stage2end) { // stage 2
-    gt.invLerp(stage2start, stage2end, percentage) => float t;
+  } else if (percentage >= stage2start && percentage <= stage2end) { // stage 2
+    // remap BPM
+    Util.remap(stage2start, stage2end, 60.0, 166.0, percentage) => beat_bpm;
+
+    // remap pitch
+    Util.invLerp(stage2start, stage2end, percentage) => float t;
     for (0 => int i; i < numVoices; i++) {
-      lerp(targetFreqs1[i], targetFreqs2[i], t) => voices[i].freq;
+      Util.lerp(stage1chord[i], stage2chord[i], t) => voices[i].freq;
 
       // lerp overdrive
       /* lerp(.0, .5, t) => drive.mix; */
     }
   } else {  // past stage 2
+    if (inStage2) {
+      20::ms +=> stage2consecutiveHold;
+      <<< stage2consecutiveHold >>>;
+    }
     if (!inStage2) {
       <<< "entered stage2 resolution!" >>>;
       true => inStage2;
     }
   }
 
+  if (stage2consecutiveHold > stage2holdThreshold) {
+    break;
+  }
+
   20::ms => now;
 }
 
-int lastT;
-fun void printProgress(float t) {
-  (t * 10) $ int => int T;
-  if (T == lastT) {
-    return;
+
+<<< "entering stage 3" >>>;
+now => time startStage3;
+1.0 => float maxZHeight;
+startStage3 + stage3lerpTime => time enterStage3;
+while (true) {
+  if (now <= enterStage3) {
+    for (0 => int i; i < numVoices; i++) {
+      Util.remap(
+        startStage3, enterStage3,
+        stage2chord[i], stage3chord[i], 
+        now
+      ) => voices[i].freq;
+    }
+
+    Util.printLerpProgress(Util.invLerp(startStage3, enterStage3, now));
+  } else {
+    if (!inStage3) {
+      true => inStage3;
+      gt.GetCombinedZ() => maxZHeight;
+      <<< "entered stage3" >>>;
+    }
+    // gt.print();
+    // lerp height to volume
+    maxGain * Util.clamp01(Util.invLerp(.1, maxZHeight, gt.GetCombinedZ())) => float newGain;
+    for (0 => int i; i < numVoices; i++) {
+      newGain => gains[i].gain;
+    }
   }
-  T => lastT;
-  "S[" @=> string output;
-  repeat(T) {
-    "=" +=> output;
-  }
-  repeat (10-T) {
-    " " +=> output;
-  }
-  "]E" +=> output;
-  <<< output >>>;
+  15::ms => now;
 }

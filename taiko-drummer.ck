@@ -70,6 +70,8 @@ public class TaikoDrummer {
       assoc_idx => pattern[0][0];  // store how long the pattern is
       return pattern;
   }
+  
+  // using sndbuf
   fun void play_drum_pattern(
         SndBuf samples[],
         int pattern[][],
@@ -87,6 +89,26 @@ public class TaikoDrummer {
             1 => samples[sample_idx].rate;
 
             num_beats::beat_dur => now;
+      }
+    }
+  }
+  // using lisa
+  fun void play_drum_pattern(
+        LiSa samples[],
+        int pattern[][],
+        dur beat_dur, // length of fastest pulse
+        int num_repeats
+  ) {
+    pattern[0][0] => int num_hits;
+    repeat (num_repeats) {
+      for (int i; i < num_hits; i++) {
+          pattern["" + i] @=> int drum_hit[];
+          drum_hit[0] => int sample_idx;
+          drum_hit[1] => int num_beats;
+
+          this.play_oneshot(samples[sample_idx]);
+
+          num_beats::beat_dur => now;
       }
     }
   }
@@ -121,7 +143,7 @@ public class TaikoDrummer {
     lisa.loop(voice, false);
     lisa.playPos(voice, 0::ms);
     lisa.play(voice, true);
-    <<< voice >>>;
+    // <<< voice >>>;
     /* lisa.rampUp(voice, 1::ms); */
   }
 
@@ -140,28 +162,55 @@ public class TaikoDrummer {
 }
 
 /* Unit Test */
-/*
-TaikoDrummer td;
-JCRev rev => Gain drummerGain => dac;
-.05 => rev.mix;
-.5 => drummerGain.gain;
 
-SndBuf A[9];
+// unit_test();
 
-td.load_and_patch_taiko_samps(A, "A", rev);
-<<< "heartbeat" >>>;
-td.play_heartbeat_pattern(1::second, A[0], 4);
-<<< "generative pattern" >>>;
-td.play_drum_pattern(
-  A,
-  td.generate_drum_pattern(
-    10, // num beats
-    A.size(), // num of samples in bank
-    .25, // probability of sample switch
-    .5 // probability of double time
-  ),
-  .5 * td.bpm_to_qt_note(86),  // shortest hit duration
-  2 // num repeats
-);
-1::second => now;
-*/
+fun void unit_test() {
+  TaikoDrummer td;
+  JCRev rev => Gain drummerGain => dac;
+  .05 => rev.mix;
+  .5 => drummerGain.gain;
+
+  LiSa A[9];
+  LiSa B[4];
+
+  td.load_and_patch_taiko_samps(A, "A", rev);
+  td.load_and_patch_taiko_samps(B, "B", rev);
+
+  // <<< "heartbeat" >>>;
+  // td.play_heartbeat_pattern(1::second, A[0], 4);
+
+  6 => int BEATS_PER_CYCLE;
+  td.bpm_to_qt_note(86) => dur qt_note;
+  2 => int REPEATS_PER_CYCLE;
+
+  <<< "generative pattern" >>>;
+  repeat (10) {
+
+  spork ~ td.play_drum_pattern(
+    A,
+    td.generate_drum_pattern(
+      BEATS_PER_CYCLE, // num beats
+      A.size(), // num of samples in bank
+      .25, // probability of sample switch
+      .5 // probability of double time
+    ),
+    .5 * qt_note,  // shortest hit duration
+    REPEATS_PER_CYCLE // num repeats
+  );
+
+  spork ~ td.play_drum_pattern(
+    B,
+    td.generate_drum_pattern(
+      (1.5 * BEATS_PER_CYCLE) $ int,  // for triplet rhythm
+      B.size(), // num of samples in bank
+      .25, // probability of sample switch
+      .5 // probability of double time
+    ),
+    (1.0/3.0) * qt_note,  // shortest hit duration
+    REPEATS_PER_CYCLE // num repeats
+  );
+
+  BEATS_PER_CYCLE * qt_note * REPEATS_PER_CYCLE => now;
+  }
+}
