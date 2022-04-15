@@ -1,20 +1,20 @@
-// organ = os.osc(freq * .5) + os.triangle(freq) + os.triangle(freq * 2)*.6 : _ / 3 : fi.resonlp(fc, 1, 1) with {
-//     octave = hslider("organOctave", 0, -1, 3, 1);
-//     freq = hslider("organFreq", 250, 50, 1000, .01) * (2^octave);
-//     fc = hslider("organFC", 1750, 20, 10000, .01);
-// };
-
-// organEnv = en.adsr(.1, .1, 1, .07, gate) with {
-//     gate = checkbox("organGate");
-// };
-
-// bestOrgan(ampEnv) = organ * organEnv * gain * ampEnv with {
-//     gain = hslider("organGain", 1, 0, 1, .01);
-// };
-
-
-public class Organ extends Chugraph
+public class ElectricOrgan extends Chugraph
 {
+    // patch
+    BeeThree organ => JCRev r => Echo e => Echo e2 => dac;
+    // Rhodey organ => JCRev r => Echo e => Echo e2 => dac;
+    organ.help();
+    r => dac;
+
+    // set delays
+    240::ms => e.max => e.delay;
+    480::ms => e2.max => e2.delay;
+    // set gains
+    .6 => e.gain;
+    .3 => e2.gain;
+    .1 => r.mix;
+    0 => organ.gain;
+    
     Gain g => LPF lowpass => ADSR env => outlet;
 
     // setup oscillators
@@ -22,9 +22,7 @@ public class Organ extends Chugraph
     TriOsc t0 => g;
     TriOsc t1 => g;
 
-    .3 => t1.gain;
-    .5 => t0.gain;
-    .5 => s.gain;
+    .6 => t1.gain;
 
     // setup lowpass
     1700. => lowpass.freq;

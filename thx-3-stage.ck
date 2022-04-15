@@ -5,9 +5,9 @@
 .93 => float stage2end;
 
 // how long stage 2 needs to be held before forcing stage3
-3::second => dur stage2holdThreshold;
+5::second => dur stage2holdThreshold;
 0::second => dur stage2consecutiveHold; 
-2::second => dur stage3lerpTime;  // how long to resolve from stage2 --> stage3
+10::second => dur stage3lerpTime;  // how long to resolve from stage2 --> stage3
 
 // 6 => int NUM_CHANNELS;
 2 => int NUM_CHANNELS;
