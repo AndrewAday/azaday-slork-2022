@@ -40,6 +40,8 @@ public class Granulator {
   PoleZero @ blocker;
   NRev @ reverb;
   ADSR @ adsr;
+  Gain spat_gain;  // gain ugen for spatialization
+    1 => spat_gain.gain;
 
 
   fun void init(string filepath, string type) {
@@ -64,7 +66,8 @@ public class Granulator {
     if (type == "sequencer") {
       this.lisa.chan(0) => this.blocker => this.adsr => this.reverb => dac;
     } else if (type == "drone") {
-      this.lisa.chan(0) => this.blocker => this.reverb => dac;
+      // don't hook up directly to dac, route into spatializer gain
+      this.lisa.chan(0) => this.blocker => this.reverb => this.spat_gain => dac;
     }
   }
 

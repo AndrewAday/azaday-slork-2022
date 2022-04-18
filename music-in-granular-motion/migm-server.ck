@@ -1,5 +1,14 @@
+/*==========Network Setup=========*/
+
 // destination host name
-[
+[ // Note: Hosts must be added in consecutive order
+    // "test0",
+    // "test1",
+    // "test2",
+    // "test3",
+    "localhost",
+    "localhost",
+    "localhost",
     "localhost"
 ] @=> string hostnames[];
 
@@ -11,7 +20,7 @@
 // if( me.args() > 1 ) me.arg(1) => Std.atoi => port;
 
 // sender object
-1 => int NUM_RECEIVERS;
+hostnames.size() => int NUM_RECEIVERS;
 OscOut xmits[NUM_RECEIVERS];
 
 // aim the transmitter at destination
@@ -26,7 +35,7 @@ Hid hi;
 HidMsg msg;
 
 // which joystick
-1 => int device;
+0 => int device;
 // 0 => int device;
 
 // open joystick 0, exit on fail
@@ -38,7 +47,8 @@ if( !hi.openKeyboard( device ) ) me.exit();
 /*===========OSC Senders==========*/
     /*===========Sequence Senders==========*/
         /*===========Multicast Senders==========*/
-fun void change_seq_gain(int idx, float g) {
+// change gain for this sequencer on ALL hemis
+fun void change_seq_gain(int idx, float g) {  
     for (0 => int i; i < NUM_RECEIVERS; i++) {
         xmits[i].start("/migm/sequence/gain");
         xmits[i].add(idx);
@@ -47,6 +57,7 @@ fun void change_seq_gain(int idx, float g) {
     }
 }
 
+// change octave for this sequencer on ALL hemis
 fun void change_seq_octave(int idx, float octave) {
     for (0 => int i; i < NUM_RECEIVERS; i++) {
         xmits[i].start("/migm/sequence/octave");
@@ -65,6 +76,7 @@ fun void change_seq_scale_deg(int idx, int scale_deg) {
     }
 }
         /*===========Targetted Senders==========*/
+// hemi at idx
 fun void seq_play(int idx, float freq) {
     xmits[idx] @=> OscOut @ xmit;
     xmit.start("/migm/sequence/play");
@@ -73,7 +85,48 @@ fun void seq_play(int idx, float freq) {
 }
     /*===========Drone Senders==========*/
         /*===========Multicast Senders==========*/
+// changes gain on all hemis for droner at drones[idx]
+fun void change_drone_gain(int idx, float g) {
+    for (0 => int i; i < NUM_RECEIVERS; i++) {
+        xmits[i].start("/migm/drone/gain");
+        xmits[i].add(idx);
+        xmits[i].add(g);
+        xmits[i].send();
+    }
+}
+
+// change octave for this droner on ALL hemis
+fun void change_drone_octave(int idx, float octave) {
+    for (0 => int i; i < NUM_RECEIVERS; i++) {
+        xmits[i].start("/migm/drone/octave");
+        xmits[i].add(idx);
+        xmits[i].add(octave);
+        xmits[i].send();
+    }
+}
+
+// set drone fundamental pitch
+fun void change_drone_scale_deg(int idx, float play_rate) {
+    for (0 => int i; i < NUM_RECEIVERS; i++) {
+        xmits[i].start("/migm/drone/scale_deg");
+        xmits[i].add(idx);
+        xmits[i].add(play_rate);
+        xmits[i].send();
+    }
+}
         /*===========Targetted Senders==========*/
+fun void change_drone_spat_gain(int d_idx, int idx0, int idx1, float g0, float g1) {
+    // update 2 hemi gains
+    xmits[idx0].start("/migm/drone/spat_gain");
+    xmits[idx0].add(d_idx);  // which drone
+    xmits[idx0].add(g0);  // gain level
+    xmits[idx0].send();
+
+    xmits[idx1].start("/migm/drone/spat_gain");
+    xmits[idx1].add(d_idx);  // which drone
+    xmits[idx1].add(g1);  // gain level
+    xmits[idx1].send();
+}
 
 /*========Sequencer global controls=========*/
 "sequencer" => string SEQ_TYPE;
@@ -109,6 +162,14 @@ MIGMPlayer local_player;
 local_player.drone_grans.size() => int NUM_DRONES;
 local_player.seq_grans.size() => int NUM_SEQS;
 
+// drone spatializers
+Spatializer drone_spats[NUM_DRONES];
+0 => int drone_spat_idx;
+    // init with num speakers
+for (0 => int i; i < drone_spats.size(); i++){
+    drone_spats[i].init(NUM_RECEIVERS);
+}
+
 
 // indices for tracking position in terminal display
 0 => int seq_idx;
@@ -117,14 +178,17 @@ local_player.seq_grans.size() => int NUM_SEQS;
 /*========keyboard controls=======*/
 
 // keyboard modes
-30 => int SPATIALIZER_MODE;
-31 => int SEQ_MODE;
-32 => int SEQ_VOICE_MODE;
-33 => int DRONE_MODE;
-34 => int SCALE_MODE;
+30 => int SEQ_SPATIALIZER_MODE;
+31 => int DRONE_SPATIALIZER_MODE;
+
+32 => int SEQ_MODE;
+33 => int SEQ_VOICE_MODE;
+34 => int DRONE_MODE;
+35 => int SCALE_MODE;
 
 
 // keys
+44 => int KEY_SPACE; 
 45 => int KEY_DASH;
 46 => int KEY_EQUAL;
 54 => int KEY_COMMA;
@@ -204,6 +268,35 @@ fun void print_voices(string type) {
     <<< "                                 |                                 " >>>;
 }
 
+// prints drone spat info at regular interval
+fun void print_drone_spats() {
+    println("========================================================");
+    for (0 => int i; i < NUM_DRONES; i++) {
+        "" => string s;
+        if (i == drone_spat_idx) {
+          "[--> " +=> s;
+        }
+        local_player.drone_grans[i].sample + " --- " + drone_spats[i].get_string_tag() +=> s;
+        if (i == drone_spat_idx) {
+          " <--]" +=> s;
+        }
+        println(s);
+        println(drone_spats[i].visualize());
+    }
+    println("========================================================");
+} 
+
+fun void drone_spat_printer() {
+  while (true) {
+    1000::ms => now;
+    if (ACTIVE_MODE != DRONE_SPATIALIZER_MODE) {
+        continue;
+    }
+    print_drone_spats();
+  }
+} spork ~ drone_spat_printer();
+
+
 fun void equip_scale(int idx) {
   idx => cur_scale_idx;
   SCALES[idx] @=> seqman.scale;
@@ -217,41 +310,140 @@ fun void equip_scale(int idx) {
 
 /*=============== Spatializers ==================*/
 
+  /*=============== Sequence Spatializer ==================*/
 // spat mode enums
-0 => int CLOCK;
+0 => int CLOCKWISE;
 1 => int COUNTER_CLOCK;
-2 => int RANDOM;
+2 => int HOLD;
+3 => int RANDOM;
+4 => int NUM_SEQ_SPAT_MODES;
 
 0 => int player_idx;
-CLOCK => int seq_spat_mode;
+CLOCKWISE => int SEQ_SPAT_MODE;
 1 => int num_seq_heads; // [1, n]. Evenly spaces. at n = 3, every other computer plays sequence. 
+1 => int skip_n; // skips n hemis every speaker change.  if n = 0, we hold. capped at num_players - 1
+0 => int change_rate; // changes hemis every n notes. if n = 0, we hold
+
+fun void next_seq_spat_mode() {
+    (SEQ_SPAT_MODE + 1) % NUM_SEQ_SPAT_MODES => SEQ_SPAT_MODE;
+}
+
+fun void update_player_idx(int amt) {
+    // TODO: exclude localhost
+    amt + player_idx => int tmp;
+    if (tmp > 0) {
+      tmp % NUM_RECEIVERS => player_idx;
+    } else {
+      while (tmp < 0) {  // wrap around from -1 --> NUM_RECEIVERS - 1
+        NUM_RECEIVERS +=> tmp;
+      }
+      tmp => player_idx;
+    }
+}
 
 fun void seq_spatializer() {
     0 => int note_acc;  // counts notes played since change
     while (true) {
         seqman.seq @=> float seq[];
         for (int i; i < seq.cap(); i++) {
-            seq_play(player_idx, seq[i]);
-            qt_note/2.0 => now;
+            seq_play(player_idx, seq[i]);  // trigger note play
+            note_acc++;  // inc note counter
 
-            // TODO: cycle player idx
+            qt_note/2.0 => now; // pass time
+
+            // re-print console visuals after change
+            if (ACTIVE_MODE == SEQ_SPATIALIZER_MODE) {
+                print_seq_spat();
+            }
+
+            if (SEQ_SPAT_MODE == HOLD) {
+                continue;
+            }
+            
+            // check if we need to change hemis
+            if (change_rate > 0 && note_acc >= change_rate) {
+                0 => note_acc;  // reset accumulator
+                // change player idx
+                if (SEQ_SPAT_MODE == CLOCKWISE) {
+                    update_player_idx(skip_n);
+                } else if (SEQ_SPAT_MODE == COUNTER_CLOCK) {
+                    update_player_idx(-skip_n);
+                } else if (SEQ_SPAT_MODE == RANDOM) {
+                    update_player_idx(Math.random2(0, NUM_RECEIVERS - 1));
+                }
+            }
+
+            // TODO: don't play localhost
         }
     }
 } spork ~ seq_spatializer();
 
+fun string visualize_seq_pos() {
+    "" => string s;
+    for (0 => int i; i < NUM_RECEIVERS; i++) {
+        if (i == player_idx) {
+            "[^]==========" +=> s;
+        } else {
+            "[ ]==========" +=> s;
+        }
+    }
+    return s;
+}
+
+fun string get_mode_string() {
+    if (SEQ_SPAT_MODE == CLOCKWISE) {
+        return "CLCK";
+    } else if (SEQ_SPAT_MODE == COUNTER_CLOCK) {
+        return "CNTR";
+    } else if (SEQ_SPAT_MODE == HOLD) {
+        return "HOLD";
+    } else if (SEQ_SPAT_MODE == RANDOM) {
+        return "RNDM";
+    } else {
+        return "N/A";
+    }
+}
+
+// prints sequence spatialization params
+fun void print_seq_spat() {
+    "" => string s;
+    "Mode: " + get_mode_string() +=> s;  // mode
+    " | Skip: " + skip_n +=> s;  // number of hemis skipped
+    " | Change: " + change_rate +=> s; // change every N notes
+    println(s);
+    println(visualize_seq_pos());
+}
+
+// fun void seq_spat_printer() {
+
+// }  spork ~  seq_spat_printer();
 
 
 
 
 
+  /*=============== Drone Spatializer ==================*/
+
+// reads all spatializer objects, sets gains on hemis accordingly
+fun void set_drone_spat_gains() {
+    int idxs[2]; float gains[2];
+    while (true) {
+        for (0 => int i; i < NUM_DRONES; i++) {  // foreach drone
+            drone_spats[i].get_gains(idxs, gains);
+            // update its gain at both hemis
+            change_drone_spat_gain(i, idxs[0], idxs[1], gains[0], gains[1]);
+        }
+        20::ms => now;
+    }
+
+} spork ~ set_drone_spat_gains();
 
 
+/*=============== Controls ==================*/
 
-
-
-
-
-
+fun void println(string s) {
+  chout <= s <= IO.newline();
+}
 
 kb();
 fun void kb() {
@@ -260,112 +452,44 @@ fun void kb() {
 
         while( hi.recv( msg ) )
         {
-            // <<< msg.which >>>;
+            <<< msg.which >>>;
             if( msg.isButtonDown() )
             {
                 // selecting keyboard mode
-                if (msg.which >= 30 && msg.which <= 35) {
+                if (msg.which >= 30 && msg.which <= 37) {
                     msg.which => ACTIVE_MODE;
-                    if (ACTIVE_MODE == SEQ_MODE) {
-                        <<< "<<<<<<<<<=======Sequence Mode========>>>>>>>>>>>" >>>;
+                    if (ACTIVE_MODE == SEQ_SPATIALIZER_MODE) {
+                      println("<<<<<<<<<=======Spatializer Mode: Sequencers========>>>>>>>>>>>");
+                      print_seq_spat();
+                    } else if (ACTIVE_MODE == DRONE_SPATIALIZER_MODE) {
+                      println("<<<<<<<<<=======Spatializer Mode: Drones========>>>>>>>>>>>");
+                      print_drone_spats();
+                    } else if (ACTIVE_MODE == SEQ_MODE) {
+                        println("<<<<<<<<<=======Sequence Mode========>>>>>>>>>>>");
                         seqman.print_state();
                     } else if (ACTIVE_MODE == DRONE_MODE) {
-                        <<< "<<<<<<<<<=======Active Droners========>>>>>>>>>>>" >>>;
+                        println("<<<<<<<<<=======Active Droners========>>>>>>>>>>>");
                         print_voices(DRONE_TYPE);
                     } else if (ACTIVE_MODE == SEQ_VOICE_MODE) {
-                        <<< "<<<<<<<<<=======Active Sequencers========>>>>>>>>>>>" >>>;
+                        println("<<<<<<<<<=======Active Sequencers========>>>>>>>>>>>");
                         print_voices(SEQ_TYPE);
                     } else if (ACTIVE_MODE == SCALE_MODE) {
-                        <<< "<<<<<<<<<=======Select Scale========>>>>>>>>>>>" >>>;
+                        println("<<<<<<<<<=======Select Scale========>>>>>>>>>>>");
                         print_scales();
                     } else {
-                        <<< "huh" >>>;
-                        <<< "active", ACTIVE_MODE >>>;
+                        println("huh?");
                     }
                     continue;
                 }
 
-                if (ACTIVE_MODE == SEQ_MODE) {
-                  // these are all banked, discrete rehearsal-based changes
-                  if( msg.which == KEY_LEFT )
-                  {
-                    if (seqman.idx > 0) {seqman.idx--;}
-                    else if (seqman.idx == 0) { seqman.seq.cap() => seqman.idx; }
-                  }
-                  else if( msg.which == KEY_RIGHT )
-                  {
-                    if (seqman.idx < seqman.seq.cap()) {seqman.idx++;}
-                    else if (seqman.idx == seqman.seq.cap()) {0 => seqman.idx; }
-                  }
-                  else if (msg.which == KEY_Z) { seqman.repl_n--; }
-                  else if (msg.which == KEY_S) { seqman.repl_n++; }
-                  else if (msg.which == KEY_X) { seqman.copy_n--; }
-                  else if (msg.which == KEY_D) { seqman.copy_n++; }
-                  else if (msg.which == KEY_C) { seqman.sub_n--; }
-                  else if (msg.which == KEY_F) { seqman.sub_n++; }
-                  else if (msg.which == KEY_V) { seqman.add_n--; }
-                  else if (msg.which == KEY_G) { seqman.add_n++; }
-                  else if (msg.which == KEY_B) { seqman.extr_n--; }
-                  else if (msg.which == KEY_H) { seqman.extr_n++; }
-                  else if (msg.which == KEY_R) {
-                    if (seqman.should_rev) { 0 => seqman.should_rev; }
-                    else { 1 => seqman.should_rev; }
-                  }
-                  // Apply all changes to new rehearsal
-                  if (msg.which == KEY_ENTER) {  // TODO: have enter localized to specific keyboard mode
-                    REHEARSAL++;
-
-                    // apply changes from all keyboard modes
-                    seqman.manipulate();
-
-                    // reset state
-                    seqman.reset();
-
-                    <<< "--------------------------------------------" >>>;
-                    <<< "|                                          |" >>>;
-                    <<< " |                REHEARSAL", REHEARSAL, "              |" >>>;
-                    <<< "|                                          |" >>>;
-                    <<< "--------------------------------------------" >>>;
-                  }
-                  seqman.print_state();
+                if (ACTIVE_MODE == SEQ_SPATIALIZER_MODE) {
+                  handle_seq_spat_mode(msg.which);
+                } else if (ACTIVE_MODE == DRONE_SPATIALIZER_MODE) {
+                  handle_drone_spat_mode(msg.which);
+                } else if (ACTIVE_MODE == SEQ_MODE) {
+                  handle_seq_mode(msg.which);
                 } else if (ACTIVE_MODE == DRONE_MODE) {
-                  if (msg.which == KEY_LEFT) {
-                      drone_idx--;
-                  } else if (msg.which == KEY_RIGHT) {
-                      drone_idx++;
-                  }
-
-                  drone_idx % NUM_DRONES => drone_idx;
-                  local_player.drone_grans[drone_idx] @=> Granulator @ g;
-
-                  if (msg.which == KEY_UP) {
-                    if (g.MUTED) { continue; }  
-                    .1 + g.lisa.gain() => g.lisa.gain;
-                  } else if (msg.which == KEY_DOWN) {
-                    if (g.MUTED) { continue; }
-                    if (g.lisa.gain() < .11){
-                      0 => g.lisa.gain;
-                    } else {
-                      g.lisa.gain() - .1 => g.lisa.gain;
-                    }
-                  } else if (msg.which == KEY_LB) {
-                    1 -=> g.GRAIN_PLAY_RATE_OFF;
-                  } else if (msg.which == KEY_RB) {
-                    1 +=> g.GRAIN_PLAY_RATE_OFF;
-                  } else if (msg.which == KEY_R) { // randomize pitch
-                    seqman.scale[Math.random2(0, seqman.scale.cap()-1)] => float sd;
-                    while (Std.fabs(sd - g.GRAIN_SCALE_DEG) < .001) {  // gaurantee new note
-                      seqman.scale[Math.random2(0, seqman.scale.cap()-1)] => sd;
-                    }
-                    sd => g.GRAIN_SCALE_DEG;
-                  } else if (msg.which == KEY_M) {
-                    if (g.MUTED) {
-                      spork ~ g.unmute(2::second);  
-                    } else {
-                      spork ~ g.mute(2::second);
-                    }
-                  }
-                  print_voices(DRONE_TYPE);
+                  handle_drone_mode(msg.which);
                 } else if (ACTIVE_MODE == SEQ_VOICE_MODE) {
                   if (msg.which == KEY_LEFT) {
                       seq_idx--;
@@ -375,7 +499,7 @@ fun void kb() {
                   }
 
                   seq_idx % NUM_SEQS => seq_idx;
-                  <<< seq_idx >>>;
+                  // <<< seq_idx >>>;
                   local_player.seq_grans[seq_idx] @=> Granulator @ g;
 
                   // For now, all sequencer voice changes are multicast GLOBAL
@@ -423,4 +547,137 @@ fun void kb() {
             }
         }
     }
+}
+
+fun void handle_seq_spat_mode(int key) {
+
+    if (key == KEY_SPACE) {  // cycle modes
+        next_seq_spat_mode();
+    } else if (key == KEY_RIGHT) {  // inc change rate
+        change_rate++;
+    } else if (key == KEY_LEFT) {  // dec change rate
+        Math.max(0, change_rate-1) $ int => change_rate;
+    } else if (key == KEY_UP) {  // inc skip
+        Math.min(NUM_RECEIVERS - 1, skip_n + 1) $ int => skip_n;
+    } else if (key == KEY_DOWN) {  // dec skip
+        Math.max(0, skip_n - 1) $ int => skip_n;
+    }
+
+    print_seq_spat();
+}
+
+fun void handle_drone_spat_mode(int key) {
+    if (key == KEY_UP) {
+      if (drone_spat_idx > 0) { drone_spat_idx--; }
+      else { NUM_DRONES - 1 => drone_spat_idx; }
+    } else if (key == KEY_DOWN) {
+      if (drone_spat_idx < NUM_DRONES - 1) { drone_spat_idx++; }
+      else { 0 => drone_spat_idx; }
+    }
+
+    <<< drone_spat_idx >>>;
+
+    drone_spats[drone_spat_idx] @=> Spatializer spat;
+
+    if (key == KEY_RIGHT) {  // inc rate
+      spat.change_cycle_rate(.1);
+    } else if (key == KEY_LEFT) {  // dec rate
+      spat.change_cycle_rate(-.1);
+    } else if (key == KEY_SPACE) {  // cycle mode
+      spat.next_mode();
+    } else if (key == KEY_EQUAL) {
+      spat.change_base_gain(.1);
+    } else if (key == KEY_DASH) {
+      spat.change_base_gain(-.1);
+    }
+
+    20::ms => now;  // give time for network to prop
+
+    print_drone_spats();
+}
+
+fun void handle_drone_mode(int key) {
+    if (key == KEY_LEFT) {
+      if (drone_idx > 0) { drone_idx--; }
+      else { NUM_DRONES - 1 => drone_idx; }
+    } else if (key == KEY_RIGHT) {
+      if (drone_idx < NUM_DRONES - 1) { drone_idx++; }
+      else { 0 => drone_idx; }
+    }
+
+    local_player.drone_grans[drone_idx] @=> Granulator @ g;
+
+    // TODO: refactor into network function calls
+    if (key == KEY_UP) {
+        if (g.MUTED) { return; }  // TODO: implement muting
+        change_drone_gain(drone_idx, .1);
+    } else if (key == KEY_DOWN) {
+        if (g.MUTED) { return; }
+        change_drone_gain(drone_idx, -.1);
+    } else if (key == KEY_LB) {
+        change_drone_octave(drone_idx, -1);
+    } else if (key == KEY_RB) {
+        change_drone_octave(drone_idx, 1);
+    } else if (key == KEY_R) { // randomize pitch
+        seqman.scale[Math.random2(0, seqman.scale.cap()-1)] => float sd;
+        while (Std.fabs(sd - g.GRAIN_SCALE_DEG) < .001) {  // gaurantee new note
+          seqman.scale[Math.random2(0, seqman.scale.cap()-1)] => sd;
+        }
+        change_drone_scale_deg(drone_idx, sd);
+    } else if (msg.which == KEY_M) {
+        // TODO: implement muting
+
+        // if (g.MUTED) {
+        //   spork ~ g.unmute(2::second);  
+        // } else {
+        //   spork ~ g.mute(2::second);
+        // }
+    }
+
+    print_voices(DRONE_TYPE);
+}
+
+fun void handle_seq_mode(int key) {
+  // these are all banked, discrete rehearsal-based changes
+  if( key == KEY_LEFT )
+  {
+    if (seqman.idx > 0) {seqman.idx--;}
+    else if (seqman.idx == 0) { seqman.seq.cap() => seqman.idx; }
+  }
+  else if( key == KEY_RIGHT )
+  {
+    if (seqman.idx < seqman.seq.cap()) {seqman.idx++;}
+    else if (seqman.idx == seqman.seq.cap()) {0 => seqman.idx; }
+  }
+  else if (key == KEY_Z) { seqman.repl_n--; }
+  else if (key == KEY_S) { seqman.repl_n++; }
+  else if (key == KEY_X) { seqman.copy_n--; }
+  else if (key == KEY_D) { seqman.copy_n++; }
+  else if (key == KEY_C) { seqman.sub_n--; }
+  else if (key == KEY_F) { seqman.sub_n++; }
+  else if (key == KEY_V) { seqman.add_n--; }
+  else if (key == KEY_G) { seqman.add_n++; }
+  else if (key == KEY_B) { seqman.extr_n--; }
+  else if (key == KEY_H) { seqman.extr_n++; }
+  else if (key == KEY_R) {
+    if (seqman.should_rev) { 0 => seqman.should_rev; }
+    else { 1 => seqman.should_rev; }
+  }
+  // Apply all changes to new rehearsal
+  if (key == KEY_ENTER) {  // TODO: have enter localized to specific keyboard mode
+    REHEARSAL++;
+
+    // apply changes from all keyboard modes
+    seqman.manipulate();
+
+    // reset state
+    seqman.reset();
+
+    println("--------------------------------------------");
+    println("|                                          |");
+    println(" |                REHEARSAL " +  REHEARSAL + "              |");
+    println("|                                          |");
+    println("--------------------------------------------");
+  }
+  seqman.print_state();
 }

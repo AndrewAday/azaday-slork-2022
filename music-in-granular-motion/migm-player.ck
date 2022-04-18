@@ -30,8 +30,8 @@ public class MIGMPlayer {
 
     // add sequencers
     Granulator @ seq_grans[0];
-                        //  ga  oc  de
-    add_seq(drone_paths[0], 1., 1., 1.);
+                        //  gain  oct  note
+    add_seq(drone_paths[0], 0., 1., 1.);
     add_seq(drone_paths[6], 0., 0, 1.);
     add_seq(drone_paths[2], 0., 0, 1.);
     add_seq(drone_paths[0], 0., 0, 1.);
@@ -84,13 +84,19 @@ public class MIGMPlayer {
         spork ~ drone.granulate();
     }
 
+    // spork network event listeners
     spork ~ step_seq();
     spork ~ seq_gain_handler();
     spork ~ seq_octave_handler();
     spork ~ seq_scale_deg_handler();
 
+    spork ~ drone_gain_handler();
+    spork ~ drone_octave_handler();
+    spork ~ drone_scale_deg_handler();
+    spork ~ drone_spat_gain_handler();
 
-    /* ==== Network Handlers ==== */
+
+/* =============== Network Handlers =============== */
 
     fun void seq_gain_handler() {
         OscIn oin;
@@ -169,4 +175,77 @@ public class MIGMPlayer {
             }
         }
     }
+
+
+/*========================Drone Handlers===========================*/
+    fun void drone_gain_handler() {
+        OscIn oin;
+        OscMsg msg;
+        6449 => oin.port;
+
+        // create an address in the receiver, expect an int and a float
+        oin.addAddress( "/migm/drone/gain, i f" );
+
+        while (true) {
+            oin => now;
+            while (oin.recv(msg)) {
+                drone_grans[msg.getInt(0)] @=> Granulator @ g;
+                // if (g.MUTED) { 0 => g.lisa.gain; continue; } // TODO: muting
+                Math.max(0, g.lisa.gain() + msg.getFloat(1)) => g.lisa.gain;
+            }
+        }
+    }
+
+    fun void drone_octave_handler() {
+        OscIn oin;
+        OscMsg msg;
+        6449 => oin.port;
+
+        // create an address in the receiver, expect an int and a float
+        oin.addAddress( "/migm/drone/octave, i f" );
+
+        while (true) {
+            oin => now;
+            while (oin.recv(msg)) {
+                drone_grans[msg.getInt(0)] @=> Granulator @ g;
+                msg.getFloat(1) +=> g.GRAIN_PLAY_RATE_OFF;
+            }
+        }
+    }
+
+    fun void drone_scale_deg_handler() {
+        OscIn oin;
+        OscMsg msg;
+        6449 => oin.port;
+
+        // create an address in the receiver, expect an int and a float
+        oin.addAddress( "/migm/drone/scale_deg, i f" );
+
+        while (true) {
+            oin => now;
+            while (oin.recv(msg)) {
+                drone_grans[msg.getInt(0)] @=> Granulator @ g;
+                msg.getFloat(1) => g.GRAIN_SCALE_DEG;
+            }
+        }
+    }
+
+    fun void drone_spat_gain_handler() {
+        OscIn oin;
+        OscMsg msg;
+        6449 => oin.port;
+
+        // create an address in the receiver, expect an int and a float
+        oin.addAddress( "/migm/drone/spat_gain, i f" );
+
+        while (true) {
+            oin => now;
+            while (oin.recv(msg)) {
+                drone_grans[msg.getInt(0)] @=> Granulator @ g;
+                msg.getFloat(1) => g.spat_gain.gain;
+            }
+        }
+    }
+    
+
 }
