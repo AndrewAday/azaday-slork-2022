@@ -68,6 +68,13 @@ public class Spatializer {
     // populates out array with gain info
         // [idx0, gain0, idx1, gain1]
     fun void get_gains(int out_idx[], float out_gains[]) {
+        // edge case of n = 1
+        if (NUM_SPEAKERS == 1) {
+            1 => out_gains[0]; 1 => out_gains[1];
+            0 => out_idx[0]; 0 => out_idx[1];
+            return;
+        }
+
         Math.floor(pos) $ int => int idx0;
         (idx0 + 1) % NUM_SPEAKERS => int idx1;
 
@@ -81,6 +88,7 @@ public class Spatializer {
 
         idx0 => out_idx[0]; idx1 => out_idx[1];
         gain0 => out_gains[0]; gain1 => out_gains[1];
+
     }
 
     // checks if a = b

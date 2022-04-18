@@ -89,6 +89,7 @@ public class MIGMPlayer {
     spork ~ step_seq();
     spork ~ seq_gain_handler();
     spork ~ seq_octave_handler();
+    spork ~ seq_adsr_rel_handler();
     spork ~ seq_scale_deg_handler();
 
     spork ~ drone_gain_handler();
@@ -150,6 +151,26 @@ public class MIGMPlayer {
                 // clamp
                 Math.max(0, Math.min(g.SEQ_OFFSETS.size() - 1, g.seq_off_idx)) $ int => g.seq_off_idx;
                 g.SEQ_OFFSETS[g.seq_off_idx] => g.GRAIN_SCALE_DEG;
+            }
+        }
+    }
+
+    // multicast set release for ALL sequence voices
+    fun void seq_adsr_rel_handler() {
+        OscIn oin;
+        OscMsg msg;
+        6449 => oin.port;
+
+        // create an address in the receiver, expect an int and a float
+        oin.addAddress( "/migm/sequence/release, f" );
+
+        while (true) {
+            oin => now;
+            while (oin.recv(msg)) {
+                for (int j; j < seq_grans.cap(); j++) {
+                    Math.max(0.01, msg.getFloat(0)) => float rel;
+                    seq_grans[j].adsr.releaseTime(rel * (qt_note / 2));
+                }
             }
         }
     }

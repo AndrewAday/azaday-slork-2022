@@ -2,13 +2,6 @@
 
 // destination host name
 [ // Note: Hosts must be added in consecutive order
-    // "test0",
-    // "test1",
-    // "test2",
-    // "test3",
-    "localhost",
-    "localhost",
-    "localhost",
     "localhost"
 ] @=> string hostnames[];
 
@@ -72,6 +65,14 @@ fun void change_seq_scale_deg(int idx, int scale_deg) {
         xmits[i].start("/migm/sequence/scale_deg");
         xmits[i].add(idx);
         xmits[i].add(scale_deg);
+        xmits[i].send();
+    }
+}
+
+fun void change_seq_rel_time(float ratio) {
+  for (0 => int i; i < NUM_RECEIVERS; i++) {
+        xmits[i].start("/migm/sequence/release");
+        xmits[i].add(ratio);
         xmits[i].send();
     }
 }
@@ -188,6 +189,7 @@ for (0 => int i; i < drone_spats.size(); i++){
 
 
 // keys
+42 => int KEY_DELETE;
 44 => int KEY_SPACE; 
 45 => int KEY_DASH;
 46 => int KEY_EQUAL;
@@ -323,6 +325,7 @@ CLOCKWISE => int SEQ_SPAT_MODE;
 1 => int num_seq_heads; // [1, n]. Evenly spaces. at n = 3, every other computer plays sequence. 
 1 => int skip_n; // skips n hemis every speaker change.  if n = 0, we hold. capped at num_players - 1
 0 => int change_rate; // changes hemis every n notes. if n = 0, we hold
+1.0 => float release_ratio;  // release time for seq adsr
 
 fun void next_seq_spat_mode() {
     (SEQ_SPAT_MODE + 1) % NUM_SEQ_SPAT_MODES => SEQ_SPAT_MODE;
@@ -410,6 +413,7 @@ fun void print_seq_spat() {
     "Mode: " + get_mode_string() +=> s;  // mode
     " | Skip: " + skip_n +=> s;  // number of hemis skipped
     " | Change: " + change_rate +=> s; // change every N notes
+    " | Release: " + release_ratio +=> s;
     println(s);
     println(visualize_seq_pos());
 }
@@ -561,6 +565,12 @@ fun void handle_seq_spat_mode(int key) {
         Math.min(NUM_RECEIVERS - 1, skip_n + 1) $ int => skip_n;
     } else if (key == KEY_DOWN) {  // dec skip
         Math.max(0, skip_n - 1) $ int => skip_n;
+    } else if (key == KEY_PERIOD) {  // inc release time
+        .2 +=> release_ratio;
+        change_seq_rel_time(release_ratio);
+    } else if (key == KEY_COMMA) {  // dec rel time
+        Math.max(0, release_ratio - .2) => release_ratio;
+        change_seq_rel_time(release_ratio);
     }
 
     print_seq_spat();
@@ -639,6 +649,11 @@ fun void handle_drone_mode(int key) {
 
 fun void handle_seq_mode(int key) {
   // these are all banked, discrete rehearsal-based changes
+  false => int reset_seq;
+  if (key == KEY_DELETE) {
+      true => reset_seq;
+      KEY_ENTER => key;  // force the sequence update
+  }
   if( key == KEY_LEFT )
   {
     if (seqman.idx > 0) {seqman.idx--;}
@@ -649,6 +664,7 @@ fun void handle_seq_mode(int key) {
     if (seqman.idx < seqman.seq.cap()) {seqman.idx++;}
     else if (seqman.idx == seqman.seq.cap()) {0 => seqman.idx; }
   }
+  // TODO: remove replicate?
   else if (key == KEY_Z) { seqman.repl_n--; }
   else if (key == KEY_S) { seqman.repl_n++; }
   else if (key == KEY_X) { seqman.copy_n--; }
@@ -667,15 +683,18 @@ fun void handle_seq_mode(int key) {
   if (key == KEY_ENTER) {  // TODO: have enter localized to specific keyboard mode
     REHEARSAL++;
 
-    // apply changes from all keyboard modes
-    seqman.manipulate();
+    if (reset_seq) {  // completely recreate sequence
+        seqman.gen_new_seq(seqman.seq.size());
+    } else {      // apply changes from all keyboard modes
+        seqman.manipulate();
+    }
 
     // reset state
     seqman.reset();
 
     println("--------------------------------------------");
     println("|                                          |");
-    println(" |                REHEARSAL " +  REHEARSAL + "              |");
+    println("|                REHEARSAL " +  REHEARSAL + "               |");
     println("|                                          |");
     println("--------------------------------------------");
   }

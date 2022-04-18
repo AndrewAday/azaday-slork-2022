@@ -78,6 +78,7 @@ public class SeqMan {
 
   fun void sub(int n) {
     if (n == 0) { return; }
+    if (n >= this.seq.size()) { return; }  // cannot have negative length sequence
     float new_seq[this.seq.cap() - Std.abs(n)];
     int beg; int end;
     if (n < 0) {
@@ -155,6 +156,18 @@ public class SeqMan {
     }
 
     return this.seq;
+  }
+
+  fun float[] gen_new_seq(int len) {
+      if (len <= 0) { return this.seq; }
+      float new_seq[len];
+
+      for (0 => int j; j < len; j++) {
+        this.scale[Math.random2(0, this.scale.size()-1)] => new_seq[j];
+      }
+
+      new_seq @=> this.seq;
+      return this.seq;
   }
 
   // Reset the mutation bank
