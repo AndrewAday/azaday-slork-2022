@@ -7,6 +7,7 @@ End mode: press enter, set all gains to 0
 public class MIGMPlayer {
     "sequencer" => string SEQ_TYPE;
     "drone" => string DRONE_TYPE;
+    2 => int NUM_CHANNELS;
 
     188. => float BPM;
     (60. / (BPM))::second => dur qt_note;  // seconds per quarter note
@@ -40,7 +41,7 @@ public class MIGMPlayer {
         Granulator seq_gran;  // init new sequencer voice
         seq_grans << seq_gran;  // add to array of sequencers
 
-        seq_gran.init(filepath, SEQ_TYPE);
+        seq_gran.init(filepath, SEQ_TYPE, NUM_CHANNELS);
         off => seq_gran.GRAIN_PLAY_RATE_OFF;
         gain => seq_gran.lisa.gain;
         deg => seq_gran.GRAIN_SCALE_DEG;
@@ -75,7 +76,7 @@ public class MIGMPlayer {
         Granulator drone;
         drone_grans << drone;
 
-        drone.init(filepath, DRONE_TYPE);
+        drone.init(filepath, DRONE_TYPE, NUM_CHANNELS);
         gain => drone.lisa.gain;
         off => drone.GRAIN_PLAY_RATE_OFF;
         deg => drone.GRAIN_SCALE_DEG;

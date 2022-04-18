@@ -44,7 +44,7 @@ public class Granulator {
     1 => spat_gain.gain;
 
 
-  fun void init(string filepath, string type) {
+  fun void init(string filepath, string type, int NUM_CHANS) {
     // messy i know...
     if (filepath == "lamonte.wav") {
       16/15. => RATE_MOD;
@@ -64,15 +64,17 @@ public class Granulator {
     // patch it
     // TODO: support multi channel
     if (type == "sequencer") {
-      this.lisa.chan(0) => this.blocker => this.adsr => this.reverb => dac;
+      this.lisa.chan(0) => this.blocker => this.adsr => this.reverb => this.spat_gain;
     } else if (type == "drone") {
       // don't hook up directly to dac, route into spatializer gain
-      this.lisa.chan(0) => this.blocker => this.reverb => this.spat_gain => dac;
+      this.lisa.chan(0) => this.blocker => this.reverb => this.spat_gain;
     }
-  }
 
-  fun void init(string filepath) {
-    this.init(filepath, "drone");
+    // connect to dac
+    for (int i; i < NUM_CHANS; i++) {
+        this.spat_gain => dac.chan(i);
+    }
+
   }
 
   fun void spork_interp() {
