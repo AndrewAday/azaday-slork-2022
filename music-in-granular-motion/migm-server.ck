@@ -196,14 +196,30 @@ fun void zero_all_spat_gains() {
 /*========keyboard controls=======*/
 
 // keyboard modes
+
+20 => int KEY_Q;
+26 => int KEY_W;
+8 => int KEY_E;
+21 => int KEY_R;
+23 => int KEY_T;
+28 => int KEY_Y;
+
+// KEY_Q => int SEQ_SPATIALIZER_MODE;
+// KEY_W => int DRONE_SPATIALIZER_MODE;
+// KEY_E => int SEQ_MODE;
+// KEY_R => int SEQ_VOICE_MODE;
+// KEY_T => int DRONE_MODE;
+// KEY_Y => int SCALE_MODE;
+
 30 => int SEQ_SPATIALIZER_MODE;
 31 => int DRONE_SPATIALIZER_MODE;
-
 32 => int SEQ_MODE;
 33 => int SEQ_VOICE_MODE;
 34 => int DRONE_MODE;
 35 => int SCALE_MODE;
 
+30 => int KEY_ONE;
+39 => int KEY_ZERO;
 
 // keys
 42 => int KEY_DELETE;
@@ -232,12 +248,18 @@ fun void zero_all_spat_gains() {
 5 => int KEY_B;
 11 => int KEY_H;
 24 => int KEY_U;
-21 => int KEY_R;
 16 => int KEY_M;
 
 40 => int KEY_ENTER;
 
 SEQ_MODE => int ACTIVE_MODE;
+
+fun int key_to_int(int key) {
+  if (key < KEY_ONE || key > KEY_ZERO) {
+    return -1;  // invalid
+  } 
+  return key - KEY_ONE;  // maps 1 to zero, 2 to 1, 0 --> 9
+}
 
 fun void print_scales() {
   "current: " + SCALE_NAMES[cur_scale_idx] + " | " => string ret;
@@ -256,35 +278,41 @@ fun void print_voices(string type) {
         local_player.drone_grans @=> grans;
         drone_idx => idx;
     }
-    "" => string ret;
     for (int i; i < grans.cap(); i++) {
+        "" => string ret;
         grans[i] @=> Granulator @ g;
         if (i == idx) {
         "[--->" +=> ret;
         }
 
-        g.sample + ": " +=> ret;
+
+        "Gain: " +=> ret;
         if (g.MUTED) {
         "MUT" +=> ret;
         } else {
         g.lisa.gain() +=> ret;
         }
 
-        "~" +=> ret;
+        "   Octave: " +=> ret;
         g.GRAIN_PLAY_RATE_OFF $ int +=> ret;
 
-        "~" +=> ret;
+        "   Degree: " +=> ret;
         g.GRAIN_SCALE_DEG +=> ret;
+
+
+        " ========= " + "[" + i + "] " + g.sample +=> ret;
 
         if (i == idx) {
         "<---] " +=> ret;
         }
 
-        " | " +=> ret;
+        println(ret);
+        println("                                                                  ");
+
+        // " | " +=> ret;
     }
-    <<< ret >>>;
-    <<< "                                 |                                 " >>>;
-    <<< "                                 |                                 " >>>;
+    // <<< ret >>>;
+    // <<< "                                 |                                 " >>>;
 }
 
 // prints drone spat info at regular interval
@@ -295,7 +323,7 @@ fun void print_drone_spats() {
         if (i == drone_spat_idx) {
           "[--> " +=> s;
         }
-        local_player.drone_grans[i].sample + " --- " + drone_spats[i].get_string_tag() +=> s;
+        drone_spats[i].get_string_tag() + " ========= " + "[" + i + "] " + local_player.drone_grans[i].sample +=> s;
         if (i == drone_spat_idx) {
           " <--]" +=> s;
         }
@@ -407,7 +435,8 @@ fun string visualize_seq_pos() {
             "[ ]" +=> s;
         }
         if (i+1 != NUM_RECEIVERS) {
-            "==========" +=> s;
+            // "==========" +=> s;
+            "          " +=> s;
         }
     }
     return s;
@@ -517,10 +546,10 @@ fun void kb() {
                 } else if (ACTIVE_MODE == DRONE_MODE) {
                   handle_drone_mode(msg.which);
                 } else if (ACTIVE_MODE == SEQ_VOICE_MODE) {
-                  if (msg.which == KEY_LEFT) {
+                  if (msg.which == KEY_UP) {
                       seq_idx--;
                       if (seq_idx < 0) { NUM_SEQS - 1 => seq_idx; }
-                  } else if (msg.which == KEY_RIGHT) {
+                  } else if (msg.which == KEY_DOWN) {
                       seq_idx++;
                   }
 
@@ -529,9 +558,9 @@ fun void kb() {
                   local_player.seq_grans[seq_idx] @=> Granulator @ g;
 
                   // For now, all sequencer voice changes are multicast GLOBAL
-                  if (msg.which == KEY_UP) {
+                  if (msg.which == KEY_RIGHT) {
                       change_seq_gain(seq_idx, .1);
-                  } else if (msg.which == KEY_DOWN) {
+                  } else if (msg.which == KEY_LEFT) {
                       change_seq_gain(seq_idx, -.1);
                   } else if (msg.which == KEY_LB) {
                       change_seq_octave(seq_idx, -1.0);
@@ -566,7 +595,9 @@ fun void kb() {
                     }
                     if (msg.which == KEY_ENTER) {
                       equip_scale(scale_idx);
-                      // TODO: replace current sequence with notes exclusive from new scale
+                      // gen new sequence of same size
+                      seqman.gen_new_seq(seqman.seq.size());
+                      
                     }
                     print_scales();
                 }
@@ -605,9 +636,12 @@ fun void handle_drone_spat_mode(int key) {
     } else if (key == KEY_DOWN) {
       if (drone_spat_idx < NUM_DRONES - 1) { drone_spat_idx++; }
       else { 0 => drone_spat_idx; }
-    }
+    } 
+    // else if (key_to_int(key) >= 0) {
+    //   key_to_int(key) => drone_spat_idx;
+    // }
 
-    <<< drone_spat_idx >>>;
+    // <<< drone_spat_idx >>>;
 
     drone_spats[drone_spat_idx] @=> Spatializer spat;
 
@@ -629,10 +663,10 @@ fun void handle_drone_spat_mode(int key) {
 }
 
 fun void handle_drone_mode(int key) {
-    if (key == KEY_LEFT) {
+    if (key == KEY_UP) {
       if (drone_idx > 0) { drone_idx--; }
       else { NUM_DRONES - 1 => drone_idx; }
-    } else if (key == KEY_RIGHT) {
+    } else if (key == KEY_DOWN) {
       if (drone_idx < NUM_DRONES - 1) { drone_idx++; }
       else { 0 => drone_idx; }
     }
@@ -640,10 +674,10 @@ fun void handle_drone_mode(int key) {
     local_player.drone_grans[drone_idx] @=> Granulator @ g;
 
     // TODO: refactor into network function calls
-    if (key == KEY_UP) {
+    if (key == KEY_RIGHT) {
         if (g.MUTED) { return; }  // TODO: implement muting
         change_drone_gain(drone_idx, .1);
-    } else if (key == KEY_DOWN) {
+    } else if (key == KEY_LEFT) {
         if (g.MUTED) { return; }
         change_drone_gain(drone_idx, -.1);
     } else if (key == KEY_LB) {

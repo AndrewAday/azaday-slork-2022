@@ -33,11 +33,11 @@ public class MIGMPlayer {
     // add sequencers
     Granulator @ seq_grans[0];
                         //  gain  oct  note
-    // add_seq("basal-0.wav", 0., 1., 1.);
-    // add_seq("wtx+1.wav", 0., 0, 1.);
-    // add_seq("energy-lead.wav", 0., 0, 1.);
-    // add_seq("minimoon-high.wav", 0., 0, 1.);
-    // add_seq("cellos.wav", 0., 0, 1.);
+    add_seq("basal-0.wav", 0., 1., 1.);
+    add_seq("wtx+1.wav", 0., 0, 1.);
+    add_seq("energy-lead.wav", 0., 0, 1.);
+    add_seq("minimoon-high.wav", 0., 0, 1.);
+    add_seq("basal-0.wav", 0., 0., 1.);
 
 
     fun void add_seq(string filepath, float gain, float off, float deg) {
@@ -67,23 +67,19 @@ public class MIGMPlayer {
     Granulator @ drone_grans[0];
 
     // init drone
-    // add_drone(drone_paths[10], 0, 0, 1.);
-    // add_drone(drone_paths[3], 0, 0, 1.);
-    // add_drone(drone_paths[11], 0, 0, 1.);
-    // add_drone(drone_paths[0], 0, 0, 1.);
-    // add_drone(drone_paths[12], 0, 0, 1.);
-    // add_drone(drone_paths[8], 0, 0, 1.);
+    add_drone("tpl-organ.wav", 0, 0, 1.);
+    add_drone("lukewarm-low.wav", 0, 0, 1.);
+    add_drone("energy-drone.wav", 0, 0, 1.);
     add_drone("cellos.wav", 0, 0, 1.);
+    add_drone("tuvan.wav", 0, 0, 1.);
+    add_drone("replicant-high.wav", 0, 0, 1.);
+    // add_drone("basal-0.wav", 0, 0, 1.);
+    add_drone("female-choir.wav", 0, 0, 1.);
+    add_drone("male-choir.wav", 0, 0, 1.);
     add_drone("minimoon-high.wav", 0, 0, 1.);
     add_drone("minimoon-low.wav", 0, 0, 1.);
-    add_drone("replicant-low.wav", 0, 0, 1.);
-    add_drone("replicant-high.wav", 0, 0, 1.);
-    add_drone("replicant-octave.wav", 0, 0, 1.);
-    add_drone("risetopower-high.wav", 0, 0, 1.);
-    add_drone("risetopower-low.wav", 0, 0, 1.);
-    add_drone("lukewarm-low.wav", 0, 0, 1.);
-    add_drone("lukewarm-high.wav", 0, 0, 1.);
-    add_drone("tpl-organ.wav", 0, 0, 1.);
+    add_drone("lamonte.wav", 0, 0, 1.);
+    // add_drone("replicant-octave.wav", 0, 0, 1.);
 
     fun void add_drone(string filepath, float gain, float off, float deg) {
         Granulator drone;
