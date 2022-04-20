@@ -368,8 +368,8 @@ fun void equip_scale(int idx) {
 0 => int player_idx;
 CLOCKWISE => int SEQ_SPAT_MODE;
 1 => int num_seq_heads; // [1, n]. Evenly spaces. at n = 3, every other computer plays sequence. 
-1 => int skip_n; // skips n hemis every speaker change.  if n = 0, we hold. capped at num_players - 1
-0 => int change_rate; // changes hemis every n notes. if n = 0, we hold
+0 => int skip_n; // skips n hemis every speaker change.  if n = 0, we hold. capped at num_players - 1
+5 => int change_rate; // changes hemis every n notes. if n = 0, we hold
 1.0 => float release_ratio;  // release time for seq adsr
 
 fun void next_seq_spat_mode() {
@@ -486,7 +486,7 @@ fun void set_drone_spat_gains() {
             // update its gain at both hemis
             change_drone_spat_gain(i, idxs[0], idxs[1], gains[0], gains[1]);
         }
-        20::ms => now;
+        15::ms => now;
     }
 
 } spork ~ set_drone_spat_gains();
