@@ -68,6 +68,7 @@ public class Granulator {
     } else if (type == "drone") {
       // don't hook up directly to dac, route into spatializer gain
       this.lisa.chan(0) => this.blocker => this.reverb => this.spat_gain;
+      0 => this.spat_gain.gain;  // default 0 for drones.
     }
 
     // connect to dac

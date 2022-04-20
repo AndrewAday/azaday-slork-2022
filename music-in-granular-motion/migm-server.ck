@@ -2,7 +2,10 @@
 
 // destination host name
 [ // Note: Hosts must be added in consecutive order
-    "localhost"
+    "localhost",
+    "donut.local",
+    "omelet.local",
+    "kimchi.local"
 ] @=> string hostnames[];
 
 // destination port number
@@ -129,6 +132,8 @@ fun void change_drone_spat_gain(int d_idx, int idx0, int idx1, float g0, float g
     xmits[idx1].send();
 }
 
+
+
 /*========Sequencer global controls=========*/
 "sequencer" => string SEQ_TYPE;
 "drone" => string DRONE_TYPE;
@@ -169,6 +174,18 @@ Spatializer drone_spats[NUM_DRONES];
     // init with num speakers
 for (0 => int i; i < drone_spats.size(); i++){
     drone_spats[i].init(NUM_RECEIVERS);
+}
+
+// upon initialiation, make all drone spatializer gains = 0
+fun void zero_all_spat_gains() {
+    for (0 => int i; i < NUM_DRONES; i++) {
+      for (0 => int j; j < NUM_RECEIVERS; j++) {
+          xmits[j].start("/migm/drone/spat_gain");
+          xmits[j].add(i);  // which drone
+          xmits[j].add(0);  // gain level
+          xmits[j].send();
+      }
+    }
 }
 
 
@@ -385,9 +402,12 @@ fun string visualize_seq_pos() {
     "" => string s;
     for (0 => int i; i < NUM_RECEIVERS; i++) {
         if (i == player_idx) {
-            "[^]==========" +=> s;
+            "[^]" +=> s;
         } else {
-            "[ ]==========" +=> s;
+            "[ ]" +=> s;
+        }
+        if (i+1 != NUM_RECEIVERS) {
+            "==========" +=> s;
         }
     }
     return s;
@@ -448,6 +468,8 @@ fun void set_drone_spat_gains() {
 fun void println(string s) {
   chout <= s <= IO.newline();
 }
+
+zero_all_spat_gains();  // zero remnant spat gains
 
 kb();
 fun void kb() {
