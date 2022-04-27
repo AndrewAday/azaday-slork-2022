@@ -2,10 +2,10 @@
 
 // destination host name
 [ // Note: Hosts must be added in consecutive order
-    "localhost",
-    "donut.local",
-    "omelet.local",
-    "kimchi.local"
+    "localhost"
+    // "donut.local",
+    // "omelet.local",
+    // "kimchi.local"
 ] @=> string hostnames[];
 
 // destination port number
@@ -176,6 +176,10 @@ for (0 => int i; i < drone_spats.size(); i++){
     drone_spats[i].init(NUM_RECEIVERS);
 }
 
+// target gain buffs
+float drone_target_gains[NUM_DRONES];
+float seq_target_gains[NUM_SEQS];
+
 // upon initialiation, make all drone spatializer gains = 0
 fun void zero_all_spat_gains() {
     for (0 => int i; i < NUM_DRONES; i++) {
@@ -278,6 +282,12 @@ fun void print_voices(string type) {
         local_player.drone_grans @=> grans;
         drone_idx => idx;
     }
+    if (type == SEQ_TYPE) {
+        println("<<<<<========================= Sequencers ============================>>>>>");
+    } else {
+        println("<<<<<=========================== Droners =============================>>>>>");
+    }
+    println("");
     for (int i; i < grans.cap(); i++) {
         "" => string ret;
         grans[i] @=> Granulator @ g;
@@ -287,11 +297,8 @@ fun void print_voices(string type) {
 
 
         "Gain: " +=> ret;
-        if (g.MUTED) {
-        "MUT" +=> ret;
-        } else {
-        g.lisa.gain() +=> ret;
-        }
+        // g.lisa.gain() +=> ret;
+        g.target_lisa_gain +=> ret;
 
         "   Octave: " +=> ret;
         g.GRAIN_PLAY_RATE_OFF $ int +=> ret;
@@ -311,13 +318,16 @@ fun void print_voices(string type) {
 
         // " | " +=> ret;
     }
+    println("===========================================================================");
+    println("");
     // <<< ret >>>;
     // <<< "                                 |                                 " >>>;
 }
 
 // prints drone spat info at regular interval
 fun void print_drone_spats() {
-    println("========================================================");
+    println("<<<<<=========================== Drone Spatializers =============================>>>>>");
+    println("");
     for (0 => int i; i < NUM_DRONES; i++) {
         "" => string s;
         if (i == drone_spat_idx) {
@@ -330,7 +340,7 @@ fun void print_drone_spats() {
         println(s);
         println(drone_spats[i].visualize());
     }
-    println("========================================================");
+    println("======================================================================================");
 } 
 
 fun void drone_spat_printer() {
@@ -475,9 +485,15 @@ fun void print_seq_spat() {
 
 
 
-  /*=============== Drone Spatializer ==================*/
+  /*
+  =============== Continuous Broadcast ==================
+  These functions will continuously send network messages
+  updating state in players.
+  These are for events that cannot afford to be lost over 
+  UDP.
+  */
 
-// reads all spatializer objects, sets gains on hemis accordingly
+// Drone Spatializer: reads all spatializer objects, sets gains on hemis accordingly
 fun void set_drone_spat_gains() {
     int idxs[2]; float gains[2];
     while (true) {
@@ -488,8 +504,29 @@ fun void set_drone_spat_gains() {
         }
         15::ms => now;
     }
-
 } spork ~ set_drone_spat_gains();
+
+// Target Gain: set target lisa gain on all players
+fun void set_drone_target_gains() {
+    5::ms => now;
+    while (true) {
+        for (0 => int i; i < NUM_DRONES; i++) {  // foreach drone
+            change_drone_gain(i, drone_target_gains[i]);
+        }
+        15::ms => now;
+    }
+} spork ~ set_drone_target_gains();
+
+fun void set_seq_target_gains() {
+    10::ms => now;
+    while (true) {
+        for (0 => int i; i < NUM_SEQS; i++) {  // foreach drone
+            change_seq_gain(i, seq_target_gains[i]);
+        }
+        15::ms => now;
+    }
+} spork ~ set_seq_target_gains();
+
 
 
 /*=============== Controls ==================*/
@@ -507,26 +544,29 @@ fun void kb() {
 
         while( hi.recv( msg ) )
         {
-            <<< msg.which >>>;
+            // <<< msg.which >>>;
             if( msg.isButtonDown() )
             {
                 // selecting keyboard mode
                 if (msg.which >= 30 && msg.which <= 37) {
                     msg.which => ACTIVE_MODE;
                     if (ACTIVE_MODE == SEQ_SPATIALIZER_MODE) {
-                      println("<<<<<<<<<=======Spatializer Mode: Sequencers========>>>>>>>>>>>");
+                    //   println("<<<<<<<<<=======Spatializer Mode: Sequencers========>>>>>>>>>>>");
+                      println("<<<<<======================== Sequence Spatializers ==========================>>>>>");
+                      println("");
                       print_seq_spat();
                     } else if (ACTIVE_MODE == DRONE_SPATIALIZER_MODE) {
-                      println("<<<<<<<<<=======Spatializer Mode: Drones========>>>>>>>>>>>");
+                    //   println("<<<<<<<<<=======Spatializer Mode: Drones========>>>>>>>>>>>");
                       print_drone_spats();
                     } else if (ACTIVE_MODE == SEQ_MODE) {
-                        println("<<<<<<<<<=======Sequence Mode========>>>>>>>>>>>");
+                        println("<<<<<<<<<=======Sequence Manipulator========>>>>>>>>>>>");
+                        println("");
                         seqman.print_state();
                     } else if (ACTIVE_MODE == DRONE_MODE) {
-                        println("<<<<<<<<<=======Active Droners========>>>>>>>>>>>");
+                        // println("<<<<<<<<<=======Active Droners========>>>>>>>>>>>");
                         print_voices(DRONE_TYPE);
                     } else if (ACTIVE_MODE == SEQ_VOICE_MODE) {
-                        println("<<<<<<<<<=======Active Sequencers========>>>>>>>>>>>");
+                        // println("<<<<<<<<<=======Active Sequencers========>>>>>>>>>>>");
                         print_voices(SEQ_TYPE);
                     } else if (ACTIVE_MODE == SCALE_MODE) {
                         println("<<<<<<<<<=======Select Scale========>>>>>>>>>>>");
@@ -559,9 +599,13 @@ fun void kb() {
 
                   // For now, all sequencer voice changes are multicast GLOBAL
                   if (msg.which == KEY_RIGHT) {
-                      change_seq_gain(seq_idx, .1);
+                    //   change_seq_gain(seq_idx, .1);
+                    seq_target_gains[seq_idx] => float target_gain;
+                    target_gain + .1 => seq_target_gains[seq_idx];
                   } else if (msg.which == KEY_LEFT) {
-                      change_seq_gain(seq_idx, -.1);
+                    //   change_seq_gain(seq_idx, -.1);
+                    seq_target_gains[seq_idx] => float target_gain;
+                    Math.max(0, target_gain - .1) => seq_target_gains[seq_idx];
                   } else if (msg.which == KEY_LB) {
                       change_seq_octave(seq_idx, -1.0);
                   } else if (msg.which == KEY_RB) {
@@ -571,6 +615,7 @@ fun void kb() {
                   } else if (msg.which == KEY_PERIOD) {
                       change_seq_scale_deg(seq_idx, 1);
                   } else if (msg.which == KEY_M) {
+                      0.0 => seq_target_gains[seq_idx];
                     // TODO
                     // if (g.MUTED) {
                     //   spork ~ g.unmute(2::second);
@@ -675,11 +720,12 @@ fun void handle_drone_mode(int key) {
 
     // TODO: refactor into network function calls
     if (key == KEY_RIGHT) {
-        if (g.MUTED) { return; }  // TODO: implement muting
-        change_drone_gain(drone_idx, .1);
+        // change_drone_gain(drone_idx, .1);
+        drone_target_gains[drone_idx] + .1 => drone_target_gains[drone_idx];
     } else if (key == KEY_LEFT) {
-        if (g.MUTED) { return; }
-        change_drone_gain(drone_idx, -.1);
+        // change_drone_gain(drone_idx, -.1);
+        drone_target_gains[drone_idx] => float target_gain;
+        Math.max(0, target_gain - .1) => drone_target_gains[drone_idx];
     } else if (key == KEY_LB) {
         change_drone_octave(drone_idx, -1);
     } else if (key == KEY_RB) {
@@ -691,6 +737,7 @@ fun void handle_drone_mode(int key) {
         }
         change_drone_scale_deg(drone_idx, sd);
     } else if (msg.which == KEY_M) {
+        0.0 => drone_target_gains[drone_idx];
         // TODO: implement muting
 
         // if (g.MUTED) {

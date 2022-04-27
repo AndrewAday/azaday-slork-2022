@@ -1,0 +1,5 @@
+ADSR a;
+a.help();
+
+LiSa l;
+l.help();

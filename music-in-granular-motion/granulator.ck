@@ -42,6 +42,11 @@ public class Granulator {
   ADSR @ adsr;
   Gain spat_gain;  // gain ugen for spatialization
     1 => spat_gain.gain;
+  0.0 => float target_lisa_gain; // target gain to lerp lisa.gain towawrds
+  
+  // for cycle pos
+  SinOsc lfo => blackhole;
+  .8 => float scrub_percentage;
 
 
   fun void init(string filepath, string type, int NUM_CHANS) {
@@ -76,6 +81,9 @@ public class Granulator {
         this.spat_gain => dac.chan(i);
     }
 
+    // spork interpolators
+    spork ~ lerp_gain(.025, 15::ms);  // gain interpolator
+
   }
 
   fun void spork_interp() {
@@ -94,11 +102,37 @@ public class Granulator {
       }
   }
 
+  fun void lerp_gain( float slew, dur rate ) {
+      while( true )
+      {
+          this.lisa.gain() => float cur_gain;
+          // interp grain position
+          (target_lisa_gain - cur_gain)*slew + cur_gain => this.lisa.gain;
+          // interp rate
+          rate => now;
+      }
+  }
+
   fun void cycle_pos() {  // cycles pos back and forth across sample
-    2 * this.lisa.duration()/second => float T;
+    
+    // TODO: update this to version of granulator in harmonic lattices. 
+    // base period T off of scrub percentage, not entire sample length.
+
+    2 * scrub_percentage * this.lisa.duration() => lfo.period;  
+    // 2 * this.lisa.duration()/second => float T;
+
     while (true) {
-      1 - (.5 + .4 * Math.cos(2*pi*(now/second)/T)) => this.GRAIN_POSITION;
-      100::ms => now;
+      
+      (.5 + (this.scrub_percentage/2.0) * this.lfo.last()) => this.GRAIN_POSITION;
+      // 1 - (.5 + .4 * Math.cos(2*pi*(now/second)/T)) => this.GRAIN_POSITION;
+      
+      // TODO: should grain pos be broadcast across network?
+        // probably not, don't think we need to synchronize all samples?
+
+      // TODO: does reducing this timing improve sound? 
+      // 100::ms => now;
+      20::ms => now;
+      
       /* <<< this.GRAIN_POSITION >>>; */
     }
   }

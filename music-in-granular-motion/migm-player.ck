@@ -7,8 +7,8 @@ End mode: press enter, set all gains to 0
 public class MIGMPlayer {
     "sequencer" => string SEQ_TYPE;
     "drone" => string DRONE_TYPE;
-    // 2 => int NUM_CHANNELS;
-    6 => int NUM_CHANNELS;
+    2 => int NUM_CHANNELS;
+    // 6 => int NUM_CHANNELS;
 
     188. => float BPM;
     (60. / (BPM))::second => dur qt_note;  // seconds per quarter note
@@ -70,7 +70,7 @@ public class MIGMPlayer {
     add_drone("tpl-organ.wav", 0, 0, 1.);
     add_drone("lukewarm-low.wav", 0, 0, 1.);
     add_drone("energy-drone.wav", 0, 0, 1.);
-    add_drone("cellos.wav", 0, 0, 1.);
+    add_drone("cellos.wav", 0, 0, 1.5);
     add_drone("tuvan.wav", 0, 0, 1.);
     add_drone("replicant-high.wav", 0, 0, 1.);
     // add_drone("basal-0.wav", 0, 0, 1.);
@@ -121,8 +121,12 @@ public class MIGMPlayer {
             oin => now;
             while (oin.recv(msg)) {
                 seq_grans[msg.getInt(0)] @=> Granulator @ g;
-                // if (g.MUTED) { 0 => g.lisa.gain; continue; }
-                Math.max(0, g.lisa.gain() + msg.getFloat(1)) => g.lisa.gain;
+
+                // for setting gain directly, no lerp.
+                // Math.max(0, g.lisa.gain() + msg.getFloat(1)) => g.lisa.gain;
+                
+                // set target gain for lerping
+                Math.max(0, msg.getFloat(1)) => g.target_lisa_gain;
             }
         }
     }
@@ -222,7 +226,10 @@ public class MIGMPlayer {
             while (oin.recv(msg)) {
                 drone_grans[msg.getInt(0)] @=> Granulator @ g;
                 // if (g.MUTED) { 0 => g.lisa.gain; continue; } // TODO: muting
-                Math.max(0, g.lisa.gain() + msg.getFloat(1)) => g.lisa.gain;
+                // Math.max(0, g.lisa.gain() + msg.getFloat(1)) => g.lisa.gain;
+
+                // set target gain for lerping
+                Math.max(0, msg.getFloat(1)) => g.target_lisa_gain;
             }
         }
     }
