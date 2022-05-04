@@ -119,7 +119,7 @@ public class SeqMan {
   }
 
   fun void extract(int n) {
-    if (n==0) { return; }
+    if (n<=0) { return; }
     float new_seq[n];
 
     int beg; int end;

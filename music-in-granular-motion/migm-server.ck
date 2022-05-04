@@ -72,6 +72,15 @@ fun void change_seq_scale_deg(int idx, int scale_deg) {
     }
 }
 
+3 => int all_seq_scale_deg_off_idx;
+fun void change_all_seq_scale_deg(int scale_deg) {
+    for (0 => int i; i < NUM_RECEIVERS; i++) {
+        xmits[i].start("/migm/sequence/all_scale_deg");
+        xmits[i].add(scale_deg);
+        xmits[i].send();
+    }
+}
+
 fun void change_seq_rel_time(float ratio) {
   for (0 => int i; i < NUM_RECEIVERS; i++) {
         xmits[i].start("/migm/sequence/release");
@@ -139,8 +148,9 @@ fun void change_drone_spat_gain(int d_idx, int idx0, int idx1, float g0, float g
 "drone" => string DRONE_TYPE;
 // scales
 [
-    [1., 2/3., 3/4., 9/10., 9/8., 6/5., 4/3., 3/2.],
-    [5/6., 3/4., 1., 9/8., 5/4., 3/2., 5/3.]  // penta min
+    // [2/3., 3/4., 9/10., 1., 9/8., 6/5., 4/3., 3/2.],
+    [2/3., 3/4., 9/10., 1., 9/8., 6/5., 4/3., 3/2.],
+    [3/4., 5/6., 1., 9/8., 5/4., 3/2., 5/3.]  // penta min
 ] @=> float SCALES[][];
 
 [
@@ -201,12 +211,16 @@ fun void zero_all_spat_gains() {
 
 // keyboard modes
 
+43 => int KEY_TAB;
 20 => int KEY_Q;
 26 => int KEY_W;
 8 => int KEY_E;
 21 => int KEY_R;
 23 => int KEY_T;
 28 => int KEY_Y;
+// 24 => int KEY_U;
+12 => int KEY_I;
+
 
 // KEY_Q => int SEQ_SPATIALIZER_MODE;
 // KEY_W => int DRONE_SPATIALIZER_MODE;
@@ -253,6 +267,9 @@ fun void zero_all_spat_gains() {
 11 => int KEY_H;
 24 => int KEY_U;
 16 => int KEY_M;
+
+51 => int KEY_COLON;
+52 => int KEY_APPOSTROPHE;
 
 40 => int KEY_ENTER;
 
@@ -387,7 +404,6 @@ fun void next_seq_spat_mode() {
 }
 
 fun void update_player_idx(int amt) {
-    // TODO: exclude localhost
     amt + player_idx => int tmp;
     if (tmp > 0) {
       tmp % NUM_RECEIVERS => player_idx;
@@ -415,6 +431,8 @@ fun void seq_spatializer() {
             }
 
             if (SEQ_SPAT_MODE == HOLD) {
+                // hold locks sequence into center speaker
+                0 => player_idx;
                 continue;
             }
             
@@ -614,6 +632,15 @@ fun void kb() {
                       change_seq_scale_deg(seq_idx, -1);
                   } else if (msg.which == KEY_PERIOD) {
                       change_seq_scale_deg(seq_idx, 1);
+                  } else if (msg.which == KEY_COLON) {
+                      all_seq_scale_deg_off_idx - 1 => all_seq_scale_deg_off_idx;
+                      if (all_seq_scale_deg_off_idx < 0) { 0 => all_seq_scale_deg_off_idx; }
+                      change_all_seq_scale_deg(all_seq_scale_deg_off_idx);
+                  } else if (msg.which == KEY_APPOSTROPHE) {
+                      all_seq_scale_deg_off_idx + 1 => all_seq_scale_deg_off_idx;
+                      if (all_seq_scale_deg_off_idx > 6) { 6 => all_seq_scale_deg_off_idx; }
+                      change_all_seq_scale_deg(all_seq_scale_deg_off_idx);
+                      change_all_seq_scale_deg(all_seq_scale_deg_off_idx);
                   } else if (msg.which == KEY_M) {
                       0.0 => seq_target_gains[seq_idx];
                     // TODO
@@ -730,13 +757,53 @@ fun void handle_drone_mode(int key) {
         change_drone_octave(drone_idx, -1);
     } else if (key == KEY_RB) {
         change_drone_octave(drone_idx, 1);
-    } else if (key == KEY_R) { // randomize pitch
+    // } else if (key == KEY_R) { // randomize pitch
+    } else if (key == KEY_TAB) { // randomize pitch
         seqman.scale[Math.random2(0, seqman.scale.cap()-1)] => float sd;
         while (Std.fabs(sd - g.GRAIN_SCALE_DEG) < .001) {  // gaurantee new note
           seqman.scale[Math.random2(0, seqman.scale.cap()-1)] => sd;
         }
         change_drone_scale_deg(drone_idx, sd);
-    } else if (msg.which == KEY_M) {
+    }
+    // exact pitch control 
+    else if (msg.which == KEY_Q) { 
+        seqman.scale[0] => float sd;
+        change_drone_scale_deg(drone_idx, sd);
+    } 
+    else if (msg.which == KEY_W) { 
+        seqman.scale[1] => float sd;
+        change_drone_scale_deg(drone_idx, sd);
+    } 
+    else if (msg.which == KEY_E) { 
+        seqman.scale[2] => float sd;
+        change_drone_scale_deg(drone_idx, sd);
+    } 
+    else if (msg.which == KEY_R) { 
+        seqman.scale[3] => float sd;
+        change_drone_scale_deg(drone_idx, sd);
+    } 
+    else if (msg.which == KEY_T) { 
+        seqman.scale[4] => float sd;
+        change_drone_scale_deg(drone_idx, sd);
+    } 
+    else if (msg.which == KEY_Y) { 
+        seqman.scale[5] => float sd;
+        change_drone_scale_deg(drone_idx, sd);
+    } 
+    else if (msg.which == KEY_U) { 
+        if (seqman.scale.size() > 6) {
+            seqman.scale[6] => float sd;
+            change_drone_scale_deg(drone_idx, sd);
+        }
+    } 
+    else if (msg.which == KEY_I) { 
+        if (seqman.scale.size() > 7) {
+            seqman.scale[7] => float sd;
+            change_drone_scale_deg(drone_idx, sd);
+        }
+    }
+    
+    else if (msg.which == KEY_M) {
         0.0 => drone_target_gains[drone_idx];
         // TODO: implement muting
 

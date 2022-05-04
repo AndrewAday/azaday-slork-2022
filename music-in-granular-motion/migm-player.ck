@@ -7,8 +7,8 @@ End mode: press enter, set all gains to 0
 public class MIGMPlayer {
     "sequencer" => string SEQ_TYPE;
     "drone" => string DRONE_TYPE;
-    2 => int NUM_CHANNELS;
-    // 6 => int NUM_CHANNELS;
+    // 2 => int NUM_CHANNELS;
+    6 => int NUM_CHANNELS;
 
     188. => float BPM;
     (60. / (BPM))::second => dur qt_note;  // seconds per quarter note
@@ -37,7 +37,7 @@ public class MIGMPlayer {
     add_seq("wtx+1.wav", 0., 0, 1.);
     add_seq("energy-lead.wav", 0., 0, 1.);
     add_seq("minimoon-high.wav", 0., 0, 1.);
-    add_seq("basal-0.wav", 0., 0., 1.);
+    // add_seq("basal-0.wav", 0., 0., 1.);
 
 
     fun void add_seq(string filepath, float gain, float off, float deg) {
@@ -100,6 +100,7 @@ public class MIGMPlayer {
     spork ~ seq_octave_handler();
     spork ~ seq_adsr_rel_handler();
     spork ~ seq_scale_deg_handler();
+    spork ~ all_seq_scale_deg_handler();
 
     spork ~ drone_gain_handler();
     spork ~ drone_octave_handler();
@@ -164,6 +165,27 @@ public class MIGMPlayer {
                 // clamp
                 Math.max(0, Math.min(g.SEQ_OFFSETS.size() - 1, g.seq_off_idx)) $ int => g.seq_off_idx;
                 g.SEQ_OFFSETS[g.seq_off_idx] => g.GRAIN_SCALE_DEG;
+            }
+        }
+    }
+
+    fun void all_seq_scale_deg_handler() {
+        OscIn oin;
+        OscMsg msg;
+        6449 => oin.port;
+
+        oin.addAddress( "/migm/sequence/all_scale_deg, i" );
+
+        while (true) {
+            oin => now;
+            while (oin.recv(msg)) {
+                for (0 => int i; i < seq_grans.size(); i++) {
+                    seq_grans[i] @=> Granulator @ g;
+                    msg.getInt(0) => g.seq_off_idx;
+                    // clamp
+                    Math.max(0, Math.min(g.SEQ_OFFSETS.size() - 1, g.seq_off_idx)) $ int => g.seq_off_idx;
+                    g.SEQ_OFFSETS[g.seq_off_idx] => g.GRAIN_SCALE_DEG;
+                }
             }
         }
     }
